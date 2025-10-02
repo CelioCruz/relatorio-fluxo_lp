@@ -1,0 +1,16 @@
+# Ambiente virtual
+cruz.dev_venv/
+venv/
+.env/
+
+# Credenciais
+credentials.json
+.streamlit/
+
+# Arquivos do Python
+__pycache__/
+*.pyc
+*.pyo
+*.log
+.DS_Store
+Thumbs.db
