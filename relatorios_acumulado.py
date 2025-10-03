@@ -4,7 +4,6 @@ from collections import defaultdict
 import pandas as pd
 import io
 
-
 try:
     from google_planilha import GooglePlanilha
 except Exception as e:
@@ -96,6 +95,13 @@ def mostrar():
 
     # === 3. Métricas do dia selecionado ===
     metricas_dia = defaultdict(lambda: defaultdict(float))
+    mapeamento_campos = {
+        'receita': ['receita', 'receitas', 'faturamento'],
+        'perda': ['perda', 'perdas', 'cancelamentos'],
+        'venda': ['venda', 'vendas', 'pedidos'],
+        'reserva': ['reserva', 'reservas', 'agendamento']
+    }
+
     for row in dados_validos:
         data_row = parse_date(row.get(coluna_data, ""))
         if data_row != data_selecionada:
@@ -103,14 +109,6 @@ def mostrar():
         loja = str(row[coluna_loja]).strip()
         vendedor = str(row[coluna_vendedor]).strip() or "[SEM VENDEDOR]"
         chave = (loja, vendedor)
-
-        # Mapear campos
-        mapeamento_campos = {
-            'receita': ['receita', 'receitas', 'faturamento'],
-            'perda': ['perda', 'perdas', 'cancelamentos'],
-            'venda': ['venda', 'vendas', 'pedidos'],
-            'reserva': ['reserva', 'reservas', 'agendamento']
-        }
 
         for campo, palavras in mapeamento_campos.items():
             for key in row.keys():
@@ -121,14 +119,23 @@ def mostrar():
                         metricas_dia[chave][campo] += val
                     except (ValueError, TypeError):
                         pass
-                    break  # evita contar mais de uma coluna por campo
+                    break  # evita duplicação
 
-    # === 4. Montar relatório final ===
+    # === 4. Montar relatório final com regras de reserva ===
     relatorio = []
     for (loja, vendedor) in sorted(todos_pares):
         chave_str = f"{loja} - {vendedor}"
         metricas = metricas_dia[(loja, vendedor)]
         reserva_acc = reserva_acumulada.get(chave_str, 0.0)
+        reserva_dia = metricas.get('reserva', 0)
+
+        # Regra: se RESERVA do dia for -1, subtrai 1 da acumulada
+        if reserva_dia == -1:
+            reserva_acc = max(0, reserva_acc - 1)
+
+        # Só inclui se RESERVA_ACUMULADA > 0
+        if reserva_acc <= 0:
+            continue
 
         linha = {
             "DATA": data_selecionada.strftime("%d/%m/%Y"),
@@ -136,14 +143,14 @@ def mostrar():
             "Vendedor": vendedor,
             "RECEITA": int(round(metricas.get('receita', 0))),
             "PERDA": int(round(metricas.get('perda', 0))),
-            "VENDA": int(round(metricas.get('venda', 0))),            
-            "RESERVA": int(round(metricas.get('reserva', 0))),
+            "VENDA": int(round(metricas.get('venda', 0))),
+            "RESERVA": int(round(reserva_dia)),
             "RESERVA_ACUMULADA": int(round(reserva_acc))
         }
         relatorio.append(linha)
 
     if not relatorio:
-        st.info("Nenhum dado encontrado para o período.")
+        st.info("Nenhum vendedor com reserva acumulada > 0 para o período.")
         return
 
     df = pd.DataFrame(relatorio)
@@ -154,7 +161,7 @@ def mostrar():
             "RECEITA": "{:.0f}",
             "PERDA": "{:.0f}",
             "VENDA": "{:.0f}",
-            "RESERVA": "{:.0f}",
+            "PESQUISA": "{:.0f}",
             "RESERVA_ACUMULADA": "{:.0f}"
         }),
         use_container_width=True,
