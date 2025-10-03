@@ -5,6 +5,7 @@ import sys
 import os
 import io
 
+# Adiciona o diretório raiz ao sys.path para importar módulos
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
@@ -75,40 +76,55 @@ def mostrar():
 
     df = pd.DataFrame(dados_filtrados)
 
-    # ✅ REMOVER a coluna "HORA", se existir
+    # ✅ 1. Remover a primeira coluna se for indesejada (ex: vazia, numérica ou "Unnamed")
+    if not df.empty:
+        primeira_coluna = df.columns[0]
+        if (
+            primeira_coluna == "" or
+            str(primeira_coluna).isdigit() or
+            "unnamed" in str(primeira_coluna).lower()
+        ):
+            df = df.drop(columns=[primeira_coluna])
+
+    # ✅ 2. Garantir que "LOJA" seja a primeira coluna
+    if "LOJA" in df.columns:
+        outras_colunas = [col for col in df.columns if col != "LOJA"]
+        df = df[["LOJA"] + outras_colunas]
+    else:
+        st.warning("⚠️ Coluna 'LOJA' não encontrada nos dados.")
+
+    # ✅ 3. Remover coluna "HORA", se existir
     if "HORA" in df.columns:
         df = df.drop(columns=["HORA"])
 
-    # ✅ FORÇAR TODAS AS COLUNAS NUMÉRICAS PARA NÚMERO
+    # ✅ 4. Forçar colunas numéricas para tipo numérico
     colunas_numericas = ["ATENDIMENTO", "RECEITA", "PERDA", "VENDA", "RESERVA", "PESQUISA", "EXAME", "CONSULTA"]
     for col in colunas_numericas:
         if col in df.columns:
-            # Forçar tudo para string
+            # Converter para string e limpar
             df[col] = df[col].astype(str)
-            # Remover espaços e substituir vazios/comuns por "0"
             df[col] = df[col].str.strip().replace(
                 ["", "nan", "None", "NaN", "null", "–", "-", " ", "R$", "R$ ", "r$", "r$ ", "ND", "N/A"],
                 "0",
                 regex=False
             )
-            # Remover QUALQUER caractere não numérico (exceto ponto e vírgula)
+            # Remover caracteres não numéricos (mantém . e ,)
             df[col] = df[col].str.replace(r"[^\d.,-]", "", regex=True)
             # Substituir vírgula por ponto
             df[col] = df[col].str.replace(",", ".", regex=False)
-            # Converter para numérico (erros → NaN)
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-            # Preencher NaN com 0
-            df[col] = df[col].fillna(0)
-            # Arredondar e converter para inteiro se for inteiro
+            # Converter para número
+            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            # Converter para inteiro se for inteiro, senão arredondar
             if df[col].apply(lambda x: x == int(x)).all():
                 df[col] = df[col].astype(int)
             else:
                 df[col] = df[col].round(2)
-                
-    st.markdown("### Dados")
-    st.dataframe(df, use_container_width=True)
 
-    # ✅ Apenas UM botão: Baixar como Excel com nome fixo
+    # ✅ 5. Exibir o dataframe SEM índice (primeira coluna indesejada removida)
+    st.markdown("### Dados")
+    st.dataframe(df, use_container_width=True, hide_index=True)
+
+    # ✅ Botão de download
     try:
         buffer = io.BytesIO()
         df.to_excel(buffer, index=False, engine="openpyxl")

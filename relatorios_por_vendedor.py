@@ -169,11 +169,11 @@ def mostrar():
 
     # === Exibir tabela ===
     st.markdown("### Dados do Vendedor")
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True, hide_index=True)  # ✅ ÍNDICE REMOVIDO
 
     # === Resumo ===
     st.markdown("### Resumo")
-    col1, col2, col3, col4, = st.columns(4)
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("Atendimentos", len(df))
     col2.metric("Receitas", f"{int(df['RECEITA'].sum())}" if "RECEITA" in df.columns and df["RECEITA"].sum() != 0 else "0")
     col3.metric("Vendas", f"{int(df['VENDA'].sum())}" if "VENDA" in df.columns and df["VENDA"].sum() != 0 else "0")

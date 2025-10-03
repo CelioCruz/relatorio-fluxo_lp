@@ -17,3 +17,4 @@ python-dateutil
 tkcalendar
 pydrive2
 streamlit_autorefresh
+xlsxwriter

@@ -76,12 +76,9 @@ def mostrar():
             return []
 
         mapeamento_campos = {
-            'atendimento': ['atendimento', 'atendimentos', 'atend'],
-            'receita': ['receita', 'receitas', 'faturamento'],
+            'receita': ['receita', 'receitas', 'faturamento'], 
+            'perda': ['perda', 'perdas', 'cancelamentos'],            
             'venda': ['venda', 'vendas', 'pedidos'],
-            'perda': ['perda', 'perdas', 'cancelamentos'],
-            'pesquisa': ['pesquisa', 'pesquisas', 'pesq'],
-            'consulta': ['consulta', 'consultas', 'consult'],
             'reserva': ['reserva', 'reservas', 'agendamento']
         }
 
@@ -113,14 +110,18 @@ def mostrar():
             vendedor_chave = partes[1]
             linha = {
                 "LOJA": loja_chave,
-                "Vendedor": vendedor_chave
+                "Vendedor": vendedor_chave,
+                "RECEITA": 0,
+                "PERDA": 0,
+                "VENDA": 0,
+                "RESERVA": 0,
             }
             for campo in mapeamento_campos.keys():
                 total = round(valores[campo], 2)
                 linha[campo.upper()] = int(total) if total.is_integer() else total
             dados_agrupados.append(linha)
 
-        return sorted(dados_agrupados, key=lambda x: x.get("ATENDIMENTO", 0), reverse=True)
+        return dados_agrupados
 
     hoje = datetime.now()
     str_hoje = hoje.strftime("%d/%m/%Y")
@@ -144,6 +145,7 @@ def mostrar():
         st.error("Colunas essenciais não encontradas: Data, Vendedor ou Reserva.")
         return
 
+    # Acumula reservas até ontem por loja + vendedor
     reserva_acumulada_por_loja_vendedor = defaultdict(float)
     for row in dados_loja:
         data_str = row.get(coluna_data, "").strip()
@@ -157,82 +159,79 @@ def mostrar():
                 chave = f"{loja_row} - {vendedor}"
                 valor_reserva = row.get(coluna_reserva, 0)
                 try:
-                    valor_reserva = float(valor_reserva) if isinstance(valor_reserva, str) else float(valor_reserva)
+                    valor_reserva = float(str(valor_reserva).replace(",", "."))
                     reserva_acumulada_por_loja_vendedor[chave] += valor_reserva
                 except (ValueError, TypeError):
                     continue
         except ValueError:
             continue
 
+    # Dados de HOJE
     dados_hoje = [row for row in dados_loja if row.get(coluna_data, "").strip() == str_hoje]
     dados_hoje_agrupados = agrupar_por_vendedor(dados_hoje, loja_selecionada)
 
+    # Monta relatório final
     dados_agrupados = []
     vendedores_processados = set()
 
+    # 1. Com dados de HOJE
     for row in dados_hoje_agrupados:
         loja_vendedor = f"{row['LOJA']} - {row['Vendedor']}"
         vendedores_processados.add(loja_vendedor)
         reserva_acumulada = reserva_acumulada_por_loja_vendedor.get(loja_vendedor, 0.0)
-        novo_row = row.copy()
-        novo_row["RESERVA_ACUMULADA"] = reserva_acumulada
-        dados_agrupados.append(novo_row)
+        if reserva_acumulada > 0:
+            novo_row = row.copy()
+            novo_row["RECEITA"] = int(round(novo_row.get("RECEITA", 0)))
+            novo_row["RESERVA_ACUMULADA"] = int(round(reserva_acumulada))
+            dados_agrupados.append(novo_row)
 
+    # 2. Sem dados de HOJE, mas com reserva acumulada > 0
     for chave, reserva_acumulada in reserva_acumulada_por_loja_vendedor.items():
-        if chave not in vendedores_processados:
+        if chave not in vendedores_processados and reserva_acumulada > 0:
             partes = chave.split(" - ", 1)
             loja_chave = partes[0]
-            vendedor_chave = partes[1]
+            vendedor_chave = partes[1] if len(partes) > 1 else "[SEM VENDEDOR]"
             novo_row = {
                 "LOJA": loja_chave,
                 "Vendedor": vendedor_chave,
-                "ATENDIMENTO": 0,
-                "RECEITA": 0.0,
-                "VENDA": 0.0,
-                "PERDA": 0.0,
-                "PESQUISA": 0,
-                "CONSULTA": 0,
-                "RESERVA_ACUMULADA": reserva_acumulada
+                "RECEITA": 0,
+                "PERDA": 0,
+                "VENDA": 0,
+                "RESERVA": 0,
+                "RESERVA_ACUMULADA": int(round(reserva_acumulada)),
             }
             dados_agrupados.append(novo_row)
 
-    dados_agrupados.sort(key=lambda x: x.get("ATENDIMENTO", 0), reverse=True)
-
     if not dados_agrupados:
-        st.info("Nenhum dado encontrado para esta loja.")
-    else:
-        # ✅ CRIAR O DATAFRAME AQUI
-        df_exibicao = pd.DataFrame(dados_agrupados)
+        st.info("Nenhum vendedor com reservas acumuladas até ontem para esta loja.")
+        return
 
-        # ✅ Converter colunas para numérico (evita erro do Arrow)
-        colunas_int = ["ATENDIMENTO", "PESQUISA", "CONSULTA"]
-        colunas_float = ["RECEITA", "VENDA", "PERDA", "RESERVA_ACUMULADA"]
+    # Ordenar por RESERVA_ACUMULADA (decrescente)
+    df = pd.DataFrame(dados_agrupados)
+    df = df.sort_values(by="RESERVA_ACUMULADA", ascending=False).reset_index(drop=True)
 
-        for col in colunas_int:
-            if col in df_exibicao.columns:
-                df_exibicao[col] = pd.to_numeric(df_exibicao[col], errors='coerce').fillna(0).astype('Int64')
+    # Exibir SEM índice e em tela cheia
+    st.dataframe(
+        df.style.format({
+            "ATENDIMENTO": "{:.0f}",
+            "RECEITA": "{:.0f}",
+            "PERDA": "{:.0f}",
+            "VENDA": "{:.0f}",
+            "RESERVA": "{:.0f}",
+            "RESERVA_ACUMULADA": "{:.0f}"
+        }),
+        use_container_width=True,
+        hide_index=True  
+    )
 
-        for col in colunas_float:
-            if col in df_exibicao.columns:
-                df_exibicao[col] = pd.to_numeric(df_exibicao[col], errors='coerce').fillna(0.0)
-
-        # ✅ Exibir o DataFrame (só uma vez!)
-        st.dataframe(df_exibicao, use_container_width=True)
-
-        # ✅ Preparar para exportação
-        df_export = df_exibicao.copy()
-
-        # ✅ Botão de download
-        try:
-            buffer = io.BytesIO()
-            df_export.to_excel(buffer, index=False, engine="openpyxl")
-            st.download_button(
-                label="📥 Baixar como Excel",
-                data=buffer.getvalue(),
-                file_name="Relatorio de Reservas Acumuladas.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-        except ImportError:
-            st.info("📦 Instale `openpyxl`: `pip install openpyxl`")
-        except Exception as e:
-            st.error(f"Erro ao gerar o arquivo Excel: {e}")
+    # Botão para download
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Relatório")
+    output.seek(0)
+    st.download_button(
+        label="📥 Baixar Relatório em Excel",
+        data=output,
+        file_name=f"relatorio_reservas_{loja_selecionada}_{str_hoje.replace('/', '-')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )

@@ -175,16 +175,16 @@ def mostrar():
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
     st.markdown("### Resumo")
-    col1, col2, col3, col4, = st.columns(4)
-    col1.metric("Vendedor", len(df))
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Vendedores", len(df))  # Corrigido de "Vendedor" para "Vendedores"
     col2.metric("Receitas", f"{int(df['RECEITA'].sum())}" if "RECEITA" in df.columns and df["RECEITA"].sum() != 0 else "0")
     col3.metric("Vendas", f"{int(df['VENDA'].sum())}" if "VENDA" in df.columns and df["VENDA"].sum() != 0 else "0")
     col4.metric("Perdas", f"{int(df['PERDA'].sum())}" if "PERDA" in df.columns and df["PERDA"].sum() != 0 else "0")
 
     st.markdown("### Dados por Vendedor")
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True, hide_index=True)  # ✅ ÍNDICE REMOVIDO
 
-    # ✅ Apenas UM botão: Baixar como Excel com nome fixo
+    # ✅ Botão de download
     try:
         buffer = io.BytesIO()
         df.to_excel(buffer, index=False, engine="openpyxl")

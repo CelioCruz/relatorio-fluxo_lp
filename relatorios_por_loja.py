@@ -6,6 +6,7 @@ import os
 from collections import defaultdict
 import io
 
+# Adiciona o diretório raiz ao sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
@@ -119,24 +120,31 @@ def mostrar():
         return
 
     df = pd.DataFrame(dados_agrupados)
-    colunas_ordem = ["Loja", "ATENDIMENTO", "RECEITA", "VENDA", "PERDA", "PESQUISA", "CONSULTA", "RESERVA"]
-    df = df.reindex(columns=colunas_ordem, fill_value=0)
 
+    # ✅ Garantir que "Loja" seja a primeira coluna
+    colunas_ordem = ["Loja", "ATENDIMENTO", "RECEITA", "VENDA", "PERDA", "PESQUISA", "CONSULTA", "RESERVA"]
+    # Manter apenas colunas que existem no df
+    colunas_ordem_filtradas = [col for col in colunas_ordem if col in df.columns]
+    df = df[colunas_ordem_filtradas]
+
+    # ✅ Garantir que todas as colunas numéricas sejam inteiros
     for col in ["ATENDIMENTO", "RECEITA", "VENDA", "PERDA", "PESQUISA", "CONSULTA", "RESERVA"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
+    # ✅ Métricas resumo
     st.markdown("### Resumo")
-    col1, col2, col3, col4, = st.columns(4)
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("Lojas", len(df))
-    col2.metric("Receitas", f"{int(df['RECEITA'].sum())}" if "RECEITA" in df.columns and df["RECEITA"].sum() != 0 else "0")
-    col3.metric("Vendas", f"{int(df['VENDA'].sum())}" if "VENDA" in df.columns and df["VENDA"].sum() != 0 else "0")
-    col4.metric("Perdas", f"{int(df['PERDA'].sum())}" if "PERDA" in df.columns and df["PERDA"].sum() != 0 else "0")
+    col2.metric("Receitas", f"{df['RECEITA'].sum()}" if "RECEITA" in df.columns else "0")
+    col3.metric("Vendas", f"{df['VENDA'].sum()}" if "VENDA" in df.columns else "0")
+    col4.metric("Perdas", f"{df['PERDA'].sum()}" if "PERDA" in df.columns else "0")
 
+    # ✅ Exibir dataframe SEM índice (isso remove a primeira coluna numérica do pandas)
     st.markdown("### Dados por Loja")
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
-    # ✅ Apenas UM botão: Baixar como Excel com nome fixo
+    # ✅ Botão de download
     try:
         buffer = io.BytesIO()
         df.to_excel(buffer, index=False, engine="openpyxl")
