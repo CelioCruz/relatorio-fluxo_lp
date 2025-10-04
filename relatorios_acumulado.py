@@ -82,9 +82,18 @@ def mostrar():
             valor = row.get(coluna_reserva, 0)
             try:
                 valor = float(str(valor).replace(",", "."))
-                reserva_acumulada[chave] += valor
+                # Interpretação: qualquer valor > 0 = +1 reserva; -1 = -1
+                if valor == -1:
+                    reserva_acumulada[chave] -= 1
+                elif valor > 0:
+                    reserva_acumulada[chave] += 1
+                # Valores <= 0 (exceto -1) são ignorados
             except (ValueError, TypeError):
                 continue
+
+    # Garantir que nenhuma reserva acumulada fique negativa
+    for chave in reserva_acumulada:
+        reserva_acumulada[chave] = max(0, reserva_acumulada[chave])
 
     # === 2. Coletar todos os pares únicos (loja, vendedor)
     todos_pares = set()
@@ -127,11 +136,21 @@ def mostrar():
         chave_str = f"{loja} - {vendedor}"
         metricas = metricas_dia[(loja, vendedor)]
         reserva_acc = reserva_acumulada.get(chave_str, 0.0)
-        reserva_dia = metricas.get('reserva', 0)
 
-        # Regra: se RESERVA do dia for -1, subtrai 1 da acumulada
-        if reserva_dia == -1:
-            reserva_acc = max(0, reserva_acc - 1)
+        # --- INTERPRETAÇÃO DA RESERVA DO DIA ---
+        reserva_dia_bruto = metricas.get('reserva', 0)
+        reserva_dia_final = 0
+        try:
+            valor_dia = float(str(reserva_dia_bruto).strip().replace(",", "."))
+            if valor_dia == -1:
+                reserva_acc = max(0, reserva_acc - 1)
+                reserva_dia_final = -1
+            elif valor_dia > 0:
+                reserva_acc += 1
+                reserva_dia_final = 1
+            # Se for 0 ou inválido, mantém 0
+        except (ValueError, TypeError):
+            pass  # mantém 0
 
         # Só inclui se RESERVA_ACUMULADA > 0
         if reserva_acc <= 0:
@@ -144,7 +163,7 @@ def mostrar():
             "RECEITA": int(round(metricas.get('receita', 0))),
             "PERDA": int(round(metricas.get('perda', 0))),
             "VENDA": int(round(metricas.get('venda', 0))),
-            "RESERVA": int(round(reserva_dia)),
+            "RESERVA": reserva_dia_final,
             "RESERVA_ACUMULADA": int(round(reserva_acc))
         }
         relatorio.append(linha)
@@ -161,7 +180,7 @@ def mostrar():
             "RECEITA": "{:.0f}",
             "PERDA": "{:.0f}",
             "VENDA": "{:.0f}",
-            "PESQUISA": "{:.0f}",
+            "RESERVA": "{:.0f}",
             "RESERVA_ACUMULADA": "{:.0f}"
         }),
         use_container_width=True,
