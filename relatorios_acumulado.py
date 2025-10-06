@@ -54,9 +54,8 @@ def mostrar():
         st.error("Colunas essenciais não encontradas: Loja, Data, Vendedor ou Reserva.")
         return
 
-    # Data de referência (padrão = hoje)
-    hoje = datetime.now().date()
-    data_selecionada = st.date_input("Selecione a data do relatório", value=hoje)
+    # Data de referência fixa: HOJE
+    data_selecionada = datetime.now().date()
     ontem = data_selecionada - timedelta(days=1)
 
     # Filtrar dados válidos
@@ -82,16 +81,13 @@ def mostrar():
             valor = row.get(coluna_reserva, 0)
             try:
                 valor = float(str(valor).replace(",", "."))
-                # Interpretação: qualquer valor > 0 = +1 reserva; -1 = -1
                 if valor == -1:
                     reserva_acumulada[chave] -= 1
                 elif valor > 0:
                     reserva_acumulada[chave] += 1
-                # Valores <= 0 (exceto -1) são ignorados
             except (ValueError, TypeError):
                 continue
 
-    # Garantir que nenhuma reserva acumulada fique negativa
     for chave in reserva_acumulada:
         reserva_acumulada[chave] = max(0, reserva_acumulada[chave])
 
@@ -102,7 +98,7 @@ def mostrar():
         vendedor = str(row[coluna_vendedor]).strip() or "[SEM VENDEDOR]"
         todos_pares.add((loja, vendedor))
 
-    # === 3. Métricas do dia selecionado ===
+    # === 3. Métricas do dia de HOJE ===
     metricas_dia = defaultdict(lambda: defaultdict(float))
     mapeamento_campos = {
         'receita': ['receita', 'receitas', 'faturamento'],
@@ -128,7 +124,7 @@ def mostrar():
                         metricas_dia[chave][campo] += val
                     except (ValueError, TypeError):
                         pass
-                    break  # evita duplicação
+                    break
 
     # === 4. Montar relatório final com regras de reserva ===
     relatorio = []
@@ -137,7 +133,6 @@ def mostrar():
         metricas = metricas_dia[(loja, vendedor)]
         reserva_acc = reserva_acumulada.get(chave_str, 0.0)
 
-        # --- INTERPRETAÇÃO DA RESERVA DO DIA ---
         reserva_dia_bruto = metricas.get('reserva', 0)
         reserva_dia_final = 0
         try:
@@ -148,9 +143,8 @@ def mostrar():
             elif valor_dia > 0:
                 reserva_acc += 1
                 reserva_dia_final = 1
-            # Se for 0 ou inválido, mantém 0
         except (ValueError, TypeError):
-            pass  # mantém 0
+            pass
 
         # Só inclui se RESERVA_ACUMULADA > 0
         if reserva_acc <= 0:
@@ -169,7 +163,7 @@ def mostrar():
         relatorio.append(linha)
 
     if not relatorio:
-        st.info("Nenhum vendedor com reserva acumulada > 0 para o período.")
+        st.info("Nenhum vendedor com reserva acumulada > 0 para hoje.")
         return
 
     df = pd.DataFrame(relatorio)
