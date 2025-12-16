@@ -115,10 +115,9 @@ def mostrar():
             return []
 
         mapeamento_campos = {
-            'atendimento': ['atendimento', 'atendimentos', 'atend'],
             'receita': ['receita', 'receitas', 'faturamento'],
-            'venda': ['venda', 'vendas', 'pedidos'],
             'perda': ['perda', 'perdas', 'cancelamentos'],
+            'venda': ['venda', 'vendas', 'pedidos'],
             'pesquisa': ['pesquisa', 'pesquisas', 'pesq'],
             'consulta': ['consulta', 'consultas', 'consult'],
             'reserva': ['reserva', 'reservas', 'agendamento']
@@ -167,10 +166,10 @@ def mostrar():
         return
 
     df = pd.DataFrame(dados_agrupados)
-    colunas_ordem = ["Vendedor", "ATENDIMENTO", "RECEITA", "VENDA", "PERDA", "PESQUISA", "CONSULTA", "RESERVA"]
+    colunas_ordem = ["Vendedor", "RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]
     df = df.reindex(columns=colunas_ordem, fill_value=0)
 
-    for col in ["ATENDIMENTO", "RECEITA", "VENDA", "PERDA", "PESQUISA", "CONSULTA", "RESERVA"]:
+    for col in ["RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
@@ -178,8 +177,8 @@ def mostrar():
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Vendedores", len(df))  # Corrigido de "Vendedor" para "Vendedores"
     col2.metric("Receitas", f"{int(df['RECEITA'].sum())}" if "RECEITA" in df.columns and df["RECEITA"].sum() != 0 else "0")
-    col3.metric("Vendas", f"{int(df['VENDA'].sum())}" if "VENDA" in df.columns and df["VENDA"].sum() != 0 else "0")
-    col4.metric("Perdas", f"{int(df['PERDA'].sum())}" if "PERDA" in df.columns and df["PERDA"].sum() != 0 else "0")
+    col3.metric("Perdas", f"{int(df['PERDA'].sum())}" if "PERDA" in df.columns and df["PERDA"].sum() != 0 else "0")    
+    col4.metric("Vendas", f"{int(df['VENDA'].sum())}" if "VENDA" in df.columns and df["VENDA"].sum() != 0 else "0")
 
     st.markdown("### Dados por Vendedor")
     st.dataframe(df, use_container_width=True, hide_index=True)  # ✅ ÍNDICE REMOVIDO

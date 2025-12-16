@@ -96,8 +96,12 @@ def mostrar():
     # ✅ 3. Remover coluna "HORA", se existir
     if "HORA" in df.columns:
         df = df.drop(columns=["HORA"])
+    
+    # ✅ 4. Remover coluna "USUARIO_ALTERACAO", se existir
+    if "USUARIO_ALTERACAO" in df.columns:
+        df = df.drop(columns=["USUARIO_ALTERACAO"])
 
-    # ✅ 4. Forçar colunas numéricas para tipo numérico
+    # ✅ 5. Forçar colunas numéricas para tipo numérico
     colunas_numericas = ["ATENDIMENTO", "RECEITA", "PERDA", "VENDA", "RESERVA", "PESQUISA", "EXAME", "CONSULTA"]
     for col in colunas_numericas:
         if col in df.columns:
@@ -120,7 +124,7 @@ def mostrar():
             else:
                 df[col] = df[col].round(2)
 
-    # ✅ 5. Exibir o dataframe SEM índice (primeira coluna indesejada removida)
+    # ✅ 6. Exibir o dataframe SEM índice (primeira coluna indesejada removida)
     st.markdown("### Dados")
     st.dataframe(df, use_container_width=True, hide_index=True)
 

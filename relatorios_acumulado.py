@@ -54,9 +54,8 @@ def mostrar():
         st.error("Colunas essenciais não encontradas: Loja, Data, Vendedor ou Reserva.")
         return
 
-    # Data de referência (padrão = hoje)
-    hoje = datetime.now().date()
-    data_selecionada = st.date_input("Selecione a data do relatório", value=hoje)
+    # Data de referência fixa: HOJE
+    data_selecionada = datetime.now().date()
     ontem = data_selecionada - timedelta(days=1)
 
     # Filtrar dados válidos
@@ -82,9 +81,15 @@ def mostrar():
             valor = row.get(coluna_reserva, 0)
             try:
                 valor = float(str(valor).replace(",", "."))
-                reserva_acumulada[chave] += valor
+                if valor == -1:
+                    reserva_acumulada[chave] -= 1
+                elif valor > 0:
+                    reserva_acumulada[chave] += 1
             except (ValueError, TypeError):
                 continue
+
+    for chave in reserva_acumulada:
+        reserva_acumulada[chave] = max(0, reserva_acumulada[chave])
 
     # === 2. Coletar todos os pares únicos (loja, vendedor)
     todos_pares = set()
@@ -93,8 +98,15 @@ def mostrar():
         vendedor = str(row[coluna_vendedor]).strip() or "[SEM VENDEDOR]"
         todos_pares.add((loja, vendedor))
 
-    # === 3. Métricas do dia selecionado ===
+    # === 3. Métricas do dia de HOJE ===
     metricas_dia = defaultdict(lambda: defaultdict(float))
+    mapeamento_campos = {
+        'receita': ['receita', 'receitas', 'faturamento'],
+        'perda': ['perda', 'perdas', 'cancelamentos'],
+        'venda': ['venda', 'vendas', 'pedidos'],
+        'reserva': ['reserva', 'reservas', 'agendamento']
+    }
+
     for row in dados_validos:
         data_row = parse_date(row.get(coluna_data, ""))
         if data_row != data_selecionada:
@@ -102,14 +114,6 @@ def mostrar():
         loja = str(row[coluna_loja]).strip()
         vendedor = str(row[coluna_vendedor]).strip() or "[SEM VENDEDOR]"
         chave = (loja, vendedor)
-
-        # Mapear campos
-        mapeamento_campos = {
-            'receita': ['receita', 'receitas', 'faturamento'],
-            'perda': ['perda', 'perdas', 'cancelamentos'],
-            'venda': ['venda', 'vendas', 'pedidos'],
-            'reserva': ['reserva', 'reservas', 'agendamento']
-        }
 
         for campo, palavras in mapeamento_campos.items():
             for key in row.keys():
@@ -120,14 +124,31 @@ def mostrar():
                         metricas_dia[chave][campo] += val
                     except (ValueError, TypeError):
                         pass
-                    break  # evita contar mais de uma coluna por campo
+                    break
 
-    # === 4. Montar relatório final ===
+    # === 4. Montar relatório final com regras de reserva ===
     relatorio = []
     for (loja, vendedor) in sorted(todos_pares):
         chave_str = f"{loja} - {vendedor}"
         metricas = metricas_dia[(loja, vendedor)]
         reserva_acc = reserva_acumulada.get(chave_str, 0.0)
+
+        reserva_dia_bruto = metricas.get('reserva', 0)
+        reserva_dia_final = 0
+        try:
+            valor_dia = float(str(reserva_dia_bruto).strip().replace(",", "."))
+            if valor_dia == -1:
+                reserva_acc = max(0, reserva_acc - 1)
+                reserva_dia_final = -1
+            elif valor_dia > 0:
+                reserva_acc += 1
+                reserva_dia_final = 1
+        except (ValueError, TypeError):
+            pass
+
+        # Só inclui se RESERVA_ACUMULADA > 0
+        if reserva_acc <= 0:
+            continue
 
         linha = {
             "DATA": data_selecionada.strftime("%d/%m/%Y"),
@@ -135,14 +156,14 @@ def mostrar():
             "Vendedor": vendedor,
             "RECEITA": int(round(metricas.get('receita', 0))),
             "PERDA": int(round(metricas.get('perda', 0))),
-            "VENDA": int(round(metricas.get('venda', 0))),            
-            "RESERVA": int(round(metricas.get('reserva', 0))),
+            "VENDA": int(round(metricas.get('venda', 0))),
+            "RESERVA": reserva_dia_final,
             "RESERVA_ACUMULADA": int(round(reserva_acc))
         }
         relatorio.append(linha)
 
     if not relatorio:
-        st.info("Nenhum dado encontrado para o período.")
+        st.info("Nenhum vendedor com reserva acumulada > 0 para hoje.")
         return
 
     df = pd.DataFrame(relatorio)

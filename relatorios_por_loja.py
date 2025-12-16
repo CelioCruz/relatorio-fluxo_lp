@@ -81,7 +81,7 @@ def mostrar():
             st.error("❌ Coluna 'Loja' não encontrada.")
             return []
 
-        campos = ['atendimento', 'receita', 'venda', 'perda', 'pesquisa', 'consulta', 'reserva']
+        campos = ['receita', 'perda', 'venda', 'pesquisa', 'consulta', 'reserva']
         colunas_valor = {}
         for campo in campos:
             for key_lower, key_orig in colunas_map.items():
@@ -122,13 +122,13 @@ def mostrar():
     df = pd.DataFrame(dados_agrupados)
 
     # ✅ Garantir que "Loja" seja a primeira coluna
-    colunas_ordem = ["Loja", "ATENDIMENTO", "RECEITA", "VENDA", "PERDA", "PESQUISA", "CONSULTA", "RESERVA"]
+    colunas_ordem = ["Loja", "RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]
     # Manter apenas colunas que existem no df
     colunas_ordem_filtradas = [col for col in colunas_ordem if col in df.columns]
     df = df[colunas_ordem_filtradas]
 
     # ✅ Garantir que todas as colunas numéricas sejam inteiros
-    for col in ["ATENDIMENTO", "RECEITA", "VENDA", "PERDA", "PESQUISA", "CONSULTA", "RESERVA"]:
+    for col in ["RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
@@ -136,9 +136,9 @@ def mostrar():
     st.markdown("### Resumo")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Lojas", len(df))
-    col2.metric("Receitas", f"{df['RECEITA'].sum()}" if "RECEITA" in df.columns else "0")
-    col3.metric("Vendas", f"{df['VENDA'].sum()}" if "VENDA" in df.columns else "0")
-    col4.metric("Perdas", f"{df['PERDA'].sum()}" if "PERDA" in df.columns else "0")
+    col2.metric("Receitas", f"{df['RECEITA'].sum()}" if "RECEITA" in df.columns else "0")    
+    col3.metric("Perdas", f"{df['PERDA'].sum()}" if "PERDA" in df.columns else "0")
+    col4.metric("Vendas", f"{df['VENDA'].sum()}" if "VENDA" in df.columns else "0")
 
     # ✅ Exibir dataframe SEM índice (isso remove a primeira coluna numérica do pandas)
     st.markdown("### Dados por Loja")
