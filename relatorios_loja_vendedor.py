@@ -118,9 +118,9 @@ def mostrar():
             'receita': ['receita', 'receitas', 'faturamento'],
             'perda': ['perda', 'perdas', 'cancelamentos'],
             'venda': ['venda', 'vendas', 'pedidos'],
+            'reserva': ['reserva', 'reservas', 'agendamento'],
             'pesquisa': ['pesquisa', 'pesquisas', 'pesq'],
-            'consulta': ['consulta', 'consultas', 'consult'],
-            'reserva': ['reserva', 'reservas', 'agendamento']
+            'consulta': ['consulta', 'consultas', 'consult']
         }
 
         colunas_valor = {}
@@ -166,10 +166,10 @@ def mostrar():
         return
 
     df = pd.DataFrame(dados_agrupados)
-    colunas_ordem = ["Vendedor", "RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]
+    colunas_ordem = ["Vendedor", "RECEITA", "PERDA", "VENDA", "RESERVA", "PESQUISA", "CONSULTA"]
     df = df.reindex(columns=colunas_ordem, fill_value=0)
 
-    for col in ["RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]:
+    for col in ["RECEITA", "PERDA", "VENDA", "RESERVA", "PESQUISA", "CONSULTA"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
