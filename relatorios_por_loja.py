@@ -81,11 +81,16 @@ def mostrar():
             st.error("❌ Coluna 'Loja' não encontrada.")
             return []
 
-        campos = ['receita', 'perda', 'venda', 'pesquisa', 'consulta', 'reserva']
+        campos = ['receita', 'perda', 'venda', 'pesquisa', 'consulta', 'reserva', 'google']
         colunas_valor = {}
         for campo in campos:
             for key_lower, key_orig in colunas_map.items():
-                if campo in key_lower:
+                if campo == 'google':
+                    # Procura por 'google' ou 'm' (exato)
+                    if 'google' in key_lower or key_lower == 'm':
+                        colunas_valor[campo] = key_orig
+                        break
+                elif campo in key_lower:
                     colunas_valor[campo] = key_orig
                     break
 
@@ -94,8 +99,8 @@ def mostrar():
             loja = str(row.get(coluna_loja, "")).strip() or "[SEM LOJA]"
             for campo, col_orig in colunas_valor.items():
                 try:
-                    val = float(str(row.get(col_orig, "0")).replace(",", "."))
-                    resultado[loja][campo] += val
+                    val = str(row.get(col_orig, "0")).replace(",", ".")
+                    resultado[loja][campo] += float(val)
                 except:
                     continue
 
@@ -107,7 +112,7 @@ def mostrar():
                 linha[campo.upper()] = int(total) if total.is_integer() else int(round(total))
             dados_agrupados.append(linha)
 
-        return sorted(dados_agrupados, key=lambda x: x.get("ATENDIMENTO", 0), reverse=True)
+        return sorted(dados_agrupados, key=lambda x: x.get("Loja", ""), reverse=False)
 
     dados_filtrados = filtrar_por_data(dados_brutos, data_de, data_ate)
     if not dados_filtrados:
@@ -121,24 +126,26 @@ def mostrar():
 
     df = pd.DataFrame(dados_agrupados)
 
-    # ✅ Garantir que "Loja" seja a primeira coluna
-    colunas_ordem = ["Loja", "RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]
+    # ✅ Ordem: Loja, Receita, Perda, Venda, Reserva, Google, Pesquisa, Consulta
+    colunas_ordem = ["Loja", "RECEITA", "PERDA", "VENDA", "RESERVA", "GOOGLE", "PESQUISA", "CONSULTA"]
     # Manter apenas colunas que existem no df
     colunas_ordem_filtradas = [col for col in colunas_ordem if col in df.columns]
     df = df[colunas_ordem_filtradas]
 
     # ✅ Garantir que todas as colunas numéricas sejam inteiros
-    for col in ["RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]:
+    colunas_numericas = ["RECEITA", "PERDA", "VENDA", "RESERVA", "GOOGLE", "PESQUISA", "CONSULTA"]
+    for col in colunas_numericas:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
     # ✅ Métricas resumo
     st.markdown("### Resumo")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     col1.metric("Lojas", len(df))
     col2.metric("Receitas", f"{df['RECEITA'].sum()}" if "RECEITA" in df.columns else "0")    
     col3.metric("Perdas", f"{df['PERDA'].sum()}" if "PERDA" in df.columns else "0")
     col4.metric("Vendas", f"{df['VENDA'].sum()}" if "VENDA" in df.columns else "0")
+    col5.metric("Google", f"{df['GOOGLE'].sum()}" if "GOOGLE" in df.columns else "0")
 
     # ✅ Exibir dataframe SEM índice (isso remove a primeira coluna numérica do pandas)
     st.markdown("### Dados por Loja")

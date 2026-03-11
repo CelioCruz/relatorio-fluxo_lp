@@ -86,6 +86,8 @@ def mostrar():
         col_venda = get_col(headers, 'venda', 'vendas', 'pedidos')
         col_perda = get_col(headers, 'perda', 'perdas', 'cancelamentos')
         col_reserva = get_col(headers, 'reserva', 'reservas', 'agendamento')
+        col_google = get_col(headers, 'google')
+        col_m = get_col(headers, 'm')
         col_pesquisa = get_col(headers, 'pesquisa', 'pesquisas', 'pesq')
         col_consulta = get_col(headers, 'consulta', 'exame de vista', 'exame', 'consultas')
 
@@ -126,7 +128,19 @@ def mostrar():
             somar(col_perda, "PERDAS")
             somar(col_pesquisa, "PESQUISAS")
             somar(col_consulta, "EXAME DE VISTA")
-            somar(col_reserva, "RESERVAS")
+            somar(col_reserva, "RESERVA DEPOIS DE VENDA")
+            
+            # Consolidar GOOGLE e M em GOOGLE
+            val_google = 0
+            if col_m:
+                try:
+                    val_google += float(str(row.get(col_m, "0")).replace(",", "."))
+                except: pass
+            if col_google:
+                try:
+                    val_google += float(str(row.get(col_google, "0")).replace(",", "."))
+                except: pass
+            resultado[vendedor]["GOOGLE"] += int(round(val_google))
 
         if not resultado:
             st.info("📭 Nenhum dado processado.")
@@ -139,7 +153,7 @@ def mostrar():
             lista_df.append(linha)
 
         df = pd.DataFrame(lista_df)
-        colunas_ordem = ["Vendedor", "RECEITAS", "VENDAS", "PERDAS", "RESERVAS", "PESQUISAS", "EXAME DE VISTA"]
+        colunas_ordem = ["Vendedor", "RECEITAS", "VENDAS", "PERDAS", "RESERVA DEPOIS DE VENDA", "GOOGLE", "PESQUISAS", "EXAME DE VISTA"]
         df = df.reindex(columns=colunas_ordem, fill_value=0)
 
         for col in df.columns:
@@ -152,8 +166,8 @@ def mostrar():
         for _, row in df.iterrows():
             with st.container():
                 st.markdown(f"#### 👤 **{row['Vendedor']}**")
-                cols = st.columns(6)
-                metricas = ["RECEITAS", "VENDAS", "PERDAS", "RESERVAS", "PESQUISAS", "EXAME DE VISTA"]
+                cols = st.columns(7)
+                metricas = ["RECEITAS", "VENDAS", "PERDAS", "RESERVA DEPOIS DE VENDA", "GOOGLE", "PESQUISAS", "EXAME DE VISTA"]
                 for i, m in enumerate(metricas):
                     with cols[i]:
                         st.metric(m, row[m])

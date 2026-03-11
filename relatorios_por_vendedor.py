@@ -125,28 +125,30 @@ def mostrar():
         "RECEITA": ["receita", "faturamento"],
         "PERDA": ["perda", "cancelamentos"],
         "VENDA": ["venda", "pedidos"],
+        "RESERVA DEPOIS DE VENDA": ["reserva", "agendamento"],
+        "GOOGLE": ["m", "google"],
         "PESQUISA": ["pesquisa", "pesquisas"],
-        "CONSULTA": ["consulta", "exame", "exame de vista"],
-        "RESERVA": ["reserva", "agendamento"]
+        "CONSULTA": ["consulta", "exame", "exame de vista"]
     }
 
     colunas_finais = {}
     for nome, palavras in colunas_desejadas.items():
         for col in df.columns:
-            if any(p in col.lower() for p in palavras):
+            col_lower = col.lower()
+            if any(p == col_lower or p in col_lower for p in palavras):
                 colunas_finais[col] = nome
                 break
 
     if colunas_finais:
         df = df[list(colunas_finais.keys())].rename(columns=colunas_finais)
 
-    # Reordenar colunas
-    ordem = ["DATA", "LOJA", "CLIENTE", "RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]
+    # Reordenar colunas: DATA, LOJA, CLIENTE, RECEITA, PERDA, VENDA, RESERVA DEPOIS DE VENDA, GOOGLE, PESQUISA, CONSULTA
+    ordem = ["DATA", "LOJA", "CLIENTE", "RECEITA", "PERDA", "VENDA", "RESERVA DEPOIS DE VENDA", "GOOGLE", "PESQUISA", "CONSULTA"]
     colunas_existentes = [c for c in ordem if c in df.columns]
     df = df[colunas_existentes].copy()
 
-    # ✅ CONVERSÃO NUMÉRICA SEGURA — remove R$, símbolos e formatação
-    colunas_numericas = ["RECEITA", "PERDA", "VENDA", "PESQUISA", "CONSULTA", "RESERVA"]
+    # ✅ CONVERSÃO NUMÉRICA SEGURA
+    colunas_numericas = ["RECEITA", "PERDA", "VENDA", "RESERVA DEPOIS DE VENDA", "GOOGLE", "PESQUISA", "CONSULTA"]
     for col in colunas_numericas:
         if col in df.columns:
             df[col] = df[col].astype(str)
@@ -158,27 +160,28 @@ def mostrar():
             df[col] = df[col].str.replace(",", ".", regex=False)
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
 
-    # ✅ Formatar: inteiros quando possível, float quando necessário
-    for col in ["PESQUISA", "CONSULTA", "PERDA"]:
+    # ✅ Formatar: inteiros quando possível
+    for col in ["PESQUISA", "CONSULTA", "PERDA", "GOOGLE"]:
         if col in df.columns:
             df[col] = df[col].astype(int)
 
-    for col in ["RECEITA", "VENDA", "RESERVA"]:
+    for col in ["RECEITA", "VENDA", "RESERVA DEPOIS DE VENDA"]:
         if col in df.columns:
             df[col] = df[col].round(2).apply(lambda x: int(x) if x == int(x) else x)
 
     # === Exibir tabela ===
     st.markdown("### Dados do Vendedor")
-    st.dataframe(df, use_container_width=True, hide_index=True)  # ✅ ÍNDICE REMOVIDO
+    st.dataframe(df, use_container_width=True, hide_index=True)
 
     # === Resumo ===
     st.markdown("### Resumo")
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
     col1.metric("Atendimentos", len(df))
     col2.metric("Receitas", f"{int(df['RECEITA'].sum())}" if "RECEITA" in df.columns and df["RECEITA"].sum() != 0 else "0")
     col3.metric("Perdas", f"{int(df['PERDA'].sum())}" if "PERDA" in df.columns and df["PERDA"].sum() != 0 else "0")
     col4.metric("Vendas", f"{int(df['VENDA'].sum())}" if "VENDA" in df.columns and df["VENDA"].sum() != 0 else "0")
-    col5.metric("Reserva", f"{int(df['RESERVA'].sum())}" if "RESERVA" in df.columns and df["RESERVA"].sum() != 0 else "0")
+    col5.metric("Reserva", f"{int(df['RESERVA DEPOIS DE VENDA'].sum())}" if "RESERVA DEPOIS DE VENDA" in df.columns and df["RESERVA DEPOIS DE VENDA"].sum() != 0 else "0")
+    col6.metric("Google", f"{int(df['GOOGLE'].sum())}" if "GOOGLE" in df.columns and df["GOOGLE"].sum() != 0 else "0")
 
     # === Botão de download único ===
     try:

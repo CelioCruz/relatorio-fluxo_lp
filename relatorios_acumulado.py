@@ -38,7 +38,7 @@ def mostrar():
         return
 
     # Detectar colunas essenciais
-    coluna_loja = coluna_data = coluna_vendedor = coluna_reserva = None
+    coluna_loja = coluna_data = coluna_vendedor = coluna_reserva = coluna_google = coluna_m = None
     for key in dados[0].keys():
         k = key.strip().lower()
         if not coluna_loja and k in ['loja', 'unidade', 'filial', 'local']:
@@ -49,6 +49,10 @@ def mostrar():
             coluna_vendedor = key
         if not coluna_reserva and any(p in k for p in ['reserva', 'reservas', 'agendamento']):
             coluna_reserva = key
+        if not coluna_google and 'google' in k:
+            coluna_google = key
+        if not coluna_m and k == 'm':
+            coluna_m = key
 
     if not all([coluna_loja, coluna_data, coluna_vendedor, coluna_reserva]):
         st.error("Colunas essenciais não encontradas: Loja, Data, Vendedor ou Reserva.")
@@ -68,25 +72,49 @@ def mostrar():
         st.warning("Nenhum registro com loja e vendedor válido.")
         return
 
-    # === 1. Acumular reservas até ontem ===
+    # === 1. Acumular reservas, google e M até ontem ===
     reserva_acumulada = defaultdict(float)
+    google_acumulado = defaultdict(float)
+    m_acumulado = defaultdict(float)
+    
     for row in dados_validos:
         data_row = parse_date(row.get(coluna_data, ""))
         if data_row is None:
             continue
+        
+        loja = str(row[coluna_loja]).strip()
+        vendedor = str(row[coluna_vendedor]).strip() or "[SEM VENDEDOR]"
+        chave = f"{loja} - {vendedor}"
+
         if data_row <= ontem:
-            loja = str(row[coluna_loja]).strip()
-            vendedor = str(row[coluna_vendedor]).strip() or "[SEM VENDEDOR]"
-            chave = f"{loja} - {vendedor}"
-            valor = row.get(coluna_reserva, 0)
+            # Acumular Reserva
+            valor_res = row.get(coluna_reserva, 0)
             try:
-                valor = float(str(valor).replace(",", "."))
-                if valor == -1:
+                valor_res = float(str(valor_res).replace(",", "."))
+                if valor_res == -1:
                     reserva_acumulada[chave] -= 1
-                elif valor > 0:
+                elif valor_res > 0:
                     reserva_acumulada[chave] += 1
             except (ValueError, TypeError):
-                continue
+                pass
+            
+            # Acumular Google
+            if coluna_google:
+                valor_goo = row.get(coluna_google, 0)
+                try:
+                    valor_goo = float(str(valor_goo).replace(",", "."))
+                    google_acumulado[chave] += valor_goo
+                except (ValueError, TypeError):
+                    pass
+            
+            # Acumular M
+            if coluna_m:
+                valor_m = row.get(coluna_m, 0)
+                try:
+                    valor_m = float(str(valor_m).replace(",", "."))
+                    m_acumulado[chave] += valor_m
+                except (ValueError, TypeError):
+                    pass
 
     for chave in reserva_acumulada:
         reserva_acumulada[chave] = max(0, reserva_acumulada[chave])
@@ -104,7 +132,9 @@ def mostrar():
         'receita': ['receita', 'receitas', 'faturamento'],
         'perda': ['perda', 'perdas', 'cancelamentos'],
         'venda': ['venda', 'vendas', 'pedidos'],
-        'reserva': ['reserva', 'reservas', 'agendamento']
+        'reserva': ['reserva', 'reservas', 'agendamento'],
+        'google': ['google'],
+        'm': ['m']
     }
 
     for row in dados_validos:
@@ -117,7 +147,18 @@ def mostrar():
 
         for campo, palavras in mapeamento_campos.items():
             for key in row.keys():
-                if any(p in key.lower() for p in palavras):
+                key_lower = key.lower()
+                # Tratamento especial para M
+                if campo == 'm':
+                    if key_lower == 'm':
+                        val = row.get(key, 0)
+                        try:
+                            val = float(str(val).replace(",", "."))
+                            metricas_dia[chave][campo] += val
+                        except:
+                            pass
+                        break
+                elif any(p in key_lower for p in palavras):
                     val = row.get(key, 0)
                     try:
                         val = float(str(val).replace(",", "."))
@@ -132,6 +173,8 @@ def mostrar():
         chave_str = f"{loja} - {vendedor}"
         metricas = metricas_dia[(loja, vendedor)]
         reserva_acc = reserva_acumulada.get(chave_str, 0.0)
+        google_acc = google_acumulado.get(chave_str, 0.0)
+        m_acc = m_acumulado.get(chave_str, 0.0)
 
         reserva_dia_bruto = metricas.get('reserva', 0)
         reserva_dia_final = 0
@@ -146,6 +189,10 @@ def mostrar():
         except (ValueError, TypeError):
             pass
 
+        # Adicionar métricas do dia ao acumulado
+        google_acc += metricas.get('google', 0)
+        m_acc += metricas.get('m', 0)
+
         # Só inclui se RESERVA_ACUMULADA > 0
         if reserva_acc <= 0:
             continue
@@ -158,7 +205,8 @@ def mostrar():
             "PERDA": int(round(metricas.get('perda', 0))),
             "VENDA": int(round(metricas.get('venda', 0))),
             "RESERVA": reserva_dia_final,
-            "RESERVA_ACUMULADA": int(round(reserva_acc))
+            "RESERVA_ACUMULADA": int(round(reserva_acc)),
+            "GOOGLE_ACUMULADO": int(round(google_acc))
         }
         relatorio.append(linha)
 
@@ -167,7 +215,9 @@ def mostrar():
         return
 
     df = pd.DataFrame(relatorio)
-    df = df.sort_values(by=["LOJA", "Vendedor"]).reset_index(drop=True)
+    # Reordenar colunas para garantir consistência
+    cols_order = ["DATA", "LOJA", "Vendedor", "RECEITA", "PERDA", "VENDA", "RESERVA", "RESERVA_ACUMULADA", "GOOGLE_ACUMULADO"]
+    df = df[cols_order].sort_values(by=["LOJA", "Vendedor"]).reset_index(drop=True)
 
     st.dataframe(
         df.style.format({
@@ -175,7 +225,8 @@ def mostrar():
             "PERDA": "{:.0f}",
             "VENDA": "{:.0f}",
             "RESERVA": "{:.0f}",
-            "RESERVA_ACUMULADA": "{:.0f}"
+            "RESERVA_ACUMULADA": "{:.0f}",
+            "GOOGLE_ACUMULADO": "{:.0f}"
         }),
         use_container_width=True,
         hide_index=True

@@ -102,7 +102,7 @@ def mostrar():
         df = df.drop(columns=["USUARIO_ALTERACAO"])
 
     # ✅ 5. Forçar colunas numéricas para tipo numérico
-    colunas_numericas = ["ATENDIMENTO", "RECEITA", "PERDA", "VENDA", "RESERVA", "PESQUISA", "EXAME", "CONSULTA"]
+    colunas_numericas = ["ATENDIMENTO", "RECEITA", "PERDA", "VENDA", "RESERVA", "PESQUISA", "EXAME", "CONSULTA", "M", "GOOGLE"]
     for col in colunas_numericas:
         if col in df.columns:
             # Converter para string e limpar

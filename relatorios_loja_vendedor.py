@@ -118,7 +118,8 @@ def mostrar():
             'receita': ['receita', 'receitas', 'faturamento'],
             'perda': ['perda', 'perdas', 'cancelamentos'],
             'venda': ['venda', 'vendas', 'pedidos'],
-            'reserva': ['reserva', 'reservas', 'agendamento'],
+            'reserva depois de venda': ['reserva', 'reservas', 'agendamento'],
+            'google': ['m', 'google'],
             'pesquisa': ['pesquisa', 'pesquisas', 'pesq'],
             'consulta': ['consulta', 'consultas', 'consult']
         }
@@ -126,7 +127,8 @@ def mostrar():
         colunas_valor = {}
         for campo, possiveis in mapeamento_campos.items():
             for key in dados[0].keys():
-                if any(p in key.lower() for p in possiveis):
+                key_lower = key.lower()
+                if any(p == key_lower or p in key_lower for p in possiveis):
                     colunas_valor[campo] = key
                     break
 
@@ -151,7 +153,7 @@ def mostrar():
                 linha[campo.upper()] = int(total) if total.is_integer() else int(round(total))
             dados_agrupados.append(linha)
 
-        return sorted(dados_agrupados, key=lambda x: x.get("ATENDIMENTO", 0), reverse=True)
+        return sorted(dados_agrupados, key=lambda x: x.get("Vendedor", ""), reverse=False)
 
     dados_loja = filtrar_por_loja(dados_brutos, loja)
     dados_filtrados = filtrar_por_data(dados_loja, data_de, data_ate)
@@ -166,19 +168,20 @@ def mostrar():
         return
 
     df = pd.DataFrame(dados_agrupados)
-    colunas_ordem = ["Vendedor", "RECEITA", "PERDA", "VENDA", "RESERVA", "PESQUISA", "CONSULTA"]
+    colunas_ordem = ["Vendedor", "RECEITA", "PERDA", "VENDA", "RESERVA DEPOIS DE VENDA", "GOOGLE", "PESQUISA", "CONSULTA"]
     df = df.reindex(columns=colunas_ordem, fill_value=0)
 
-    for col in ["RECEITA", "PERDA", "VENDA", "RESERVA", "PESQUISA", "CONSULTA"]:
+    for col in ["RECEITA", "PERDA", "VENDA", "RESERVA DEPOIS DE VENDA", "GOOGLE", "PESQUISA", "CONSULTA"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
     st.markdown("### Resumo")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Vendedores", len(df))  # Corrigido de "Vendedor" para "Vendedores"
+    col1, col2, col3, col4, col5 = st.columns(5)
+    col1.metric("Vendedores", len(df))
     col2.metric("Receitas", f"{int(df['RECEITA'].sum())}" if "RECEITA" in df.columns and df["RECEITA"].sum() != 0 else "0")
     col3.metric("Perdas", f"{int(df['PERDA'].sum())}" if "PERDA" in df.columns and df["PERDA"].sum() != 0 else "0")    
     col4.metric("Vendas", f"{int(df['VENDA'].sum())}" if "VENDA" in df.columns and df["VENDA"].sum() != 0 else "0")
+    col5.metric("Google", f"{int(df['GOOGLE'].sum())}" if "GOOGLE" in df.columns and df["GOOGLE"].sum() != 0 else "0")
 
     st.markdown("### Dados por Vendedor")
     st.dataframe(df, use_container_width=True, hide_index=True)  # ✅ ÍNDICE REMOVIDO

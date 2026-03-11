@@ -8,7 +8,7 @@ NOME_COLUNA_DATA = "DATA"  # ← Ajuste se sua coluna tiver outro nome
 
 COLUNAS_NUMERICAS = {
     "ATENDIMENTOS", "RECEITAS", "PERDAS", "VENDAS",
-    "RESERVAS", "PESQUISAS", "EXAME DE VISTA"
+    "RESERVAS", "PESQUISAS", "EXAME DE VISTA", "M", "GOOGLE"
 }
 
 def preparar_valor(val, eh_numerica: bool):
