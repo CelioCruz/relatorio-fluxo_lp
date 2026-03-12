@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 from datetime import datetime, timedelta
 from collections import defaultdict
 import pandas as pd
@@ -7,239 +7,137 @@ import io
 try:
     from google_planilha import GooglePlanilha
 except Exception as e:
-    st.error(f"Erro ao importar 'google_planilha.py': {e}")
+    st.error(f'Erro ao importar GooglePlanilha: {e}')
     st.stop()
 
 def parse_date(date_str):
-    """Converte string no formato dd/mm/yyyy para datetime.date ou None se inválido."""
-    if not date_str or not isinstance(date_str, str):
-        return None
+    if not date_str or not isinstance(date_str, str): return None
     try:
-        return datetime.strptime(date_str.strip(), "%d/%m/%Y").date()
-    except ValueError:
-        return None
+        return datetime.strptime(date_str.strip().split()[0], '%d/%m/%Y').date()
+    except: return None
 
 def mostrar():
-    st.title("📊 Relatório Completo por Loja e Vendedor")
+    st.title('📊 Relatório Acumulado por Loja e Vendedor')
 
     try:
         gsheet = GooglePlanilha()
-    except Exception as e:
-        st.error(f"Não foi possível conectar ao Google Sheets:\n{e}")
-        return
-
-    try:
         dados = gsheet.aba_relatorio.get_all_records()
         if not dados:
-            st.warning("Nenhum dado encontrado na planilha.")
+            st.warning('📭 Nenhum dado encontrado na planilha.')
             return
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f'❌ Erro ao carregar dados: {e}')
         return
 
-    # Detectar colunas essenciais
-    coluna_loja = coluna_data = coluna_vendedor = coluna_reserva = coluna_google = coluna_m = None
-    for key in dados[0].keys():
-        k = key.strip().lower()
-        if not coluna_loja and k in ['loja', 'unidade', 'filial', 'local']:
-            coluna_loja = key
-        if not coluna_data and k in ['data', 'datas', 'dt']:
-            coluna_data = key
-        if not coluna_vendedor and k in ['vendedor', 'vendedora', 'funcionário', 'vend']:
-            coluna_vendedor = key
-        if not coluna_reserva and any(p in k for p in ['reserva', 'reservas', 'agendamento']):
-            coluna_reserva = key
-        if not coluna_google and 'google' in k:
-            coluna_google = key
-        if not coluna_m and k == 'm':
-            coluna_m = key
+    # Mapeamento EXATO
+    col_loja = 'LOJA'
+    col_data = 'DATA'
+    col_vendedor = 'VENDEDOR'
+    col_receitas = 'RECEITAS'
+    col_perdas = 'PERDAS'
+    col_vendas = 'VENDAS'
+    col_reservas = 'RESERVAS'
+    col_google = 'GOOGLE'
 
-    if not all([coluna_loja, coluna_data, coluna_vendedor, coluna_reserva]):
-        st.error("Colunas essenciais não encontradas: Loja, Data, Vendedor ou Reserva.")
-        return
+    # Verificar se as colunas existem
+    headers = dados[0].keys()
+    for c in [col_loja, col_data, col_vendedor, col_reservas, col_google]:
+        if c not in headers:
+            st.error(f'❌ Coluna essencial não encontrada: {c}')
+            return
 
-    # Data de referência fixa: HOJE
-    data_selecionada = datetime.now().date()
-    ontem = data_selecionada - timedelta(days=1)
+    hoje = datetime.now().date()
+    ontem = hoje - timedelta(days=1)
 
-    # Filtrar dados válidos
-    dados_validos = [
-        row for row in dados
-        if row.get(coluna_loja) and row.get(coluna_vendedor)
-    ]
+    # Acumuladores (até ontem)
+    reserva_acumulada = defaultdict(int)
+    google_acumulado = defaultdict(int)
+    vendedores_vistos = set()
 
-    if not dados_validos:
-        st.warning("Nenhum registro com loja e vendedor válido.")
-        return
-
-    # === 1. Acumular reservas, google e M até ontem ===
-    reserva_acumulada = defaultdict(float)
-    google_acumulado = defaultdict(float)
-    m_acumulado = defaultdict(float)
-    
-    for row in dados_validos:
-        data_row = parse_date(row.get(coluna_data, ""))
-        if data_row is None:
-            continue
+    for row in dados:
+        loja = str(row.get(col_loja, '')).strip()
+        vendedor = str(row.get(col_vendedor, '')).strip()
+        if not loja or not vendedor: continue
         
-        loja = str(row[coluna_loja]).strip()
-        vendedor = str(row[coluna_vendedor]).strip() or "[SEM VENDEDOR]"
-        chave = f"{loja} - {vendedor}"
-
-        if data_row <= ontem:
-            # Acumular Reserva
-            valor_res = row.get(coluna_reserva, 0)
+        chave = f'{loja} - {vendedor}'
+        vendedores_vistos.add((loja, vendedor))
+        
+        data_row = parse_date(row.get(col_data, ''))
+        if data_row and data_row <= ontem:
+            # Acumular Reservas (regra: 1 ou -1)
+            val_res = str(row.get(col_reservas, 0)).replace(',', '.')
             try:
-                valor_res = float(str(valor_res).replace(",", "."))
-                if valor_res == -1:
-                    reserva_acumulada[chave] -= 1
-                elif valor_res > 0:
-                    reserva_acumulada[chave] += 1
-            except (ValueError, TypeError):
-                pass
-            
-            # Acumular Google
-            if coluna_google:
-                valor_goo = row.get(coluna_google, 0)
-                try:
-                    valor_goo = float(str(valor_goo).replace(",", "."))
-                    google_acumulado[chave] += valor_goo
-                except (ValueError, TypeError):
-                    pass
-            
-            # Acumular M
-            if coluna_m:
-                valor_m = row.get(coluna_m, 0)
-                try:
-                    valor_m = float(str(valor_m).replace(",", "."))
-                    m_acumulado[chave] += valor_m
-                except (ValueError, TypeError):
-                    pass
+                v_res = float(val_res)
+                if v_res == -1: reserva_acumulada[chave] -= 1
+                elif v_res > 0: reserva_acumulada[chave] += 1
+            except: pass
 
-    for chave in reserva_acumulada:
-        reserva_acumulada[chave] = max(0, reserva_acumulada[chave])
+            # Acumular Google (numeral)
+            val_goo = str(row.get(col_google, 0)).replace(',', '.')
+            try:
+                v_goo = int(float(val_goo))
+                google_acumulado[chave] += v_goo
+            except: pass
 
-    # === 2. Coletar todos os pares únicos (loja, vendedor)
-    todos_pares = set()
-    for row in dados_validos:
-        loja = str(row[coluna_loja]).strip()
-        vendedor = str(row[coluna_vendedor]).strip() or "[SEM VENDEDOR]"
-        todos_pares.add((loja, vendedor))
-
-    # === 3. Métricas do dia de HOJE ===
-    metricas_dia = defaultdict(lambda: defaultdict(float))
-    mapeamento_campos = {
-        'receita': ['receita', 'receitas', 'faturamento'],
-        'perda': ['perda', 'perdas', 'cancelamentos'],
-        'venda': ['venda', 'vendas', 'pedidos'],
-        'reserva': ['reserva', 'reservas', 'agendamento'],
-        'google': ['google'],
-        'm': ['m']
-    }
-
-    for row in dados_validos:
-        data_row = parse_date(row.get(coluna_data, ""))
-        if data_row != data_selecionada:
-            continue
-        loja = str(row[coluna_loja]).strip()
-        vendedor = str(row[coluna_vendedor]).strip() or "[SEM VENDEDOR]"
+    # Métricas de HOJE
+    metricas_hoje = defaultdict(lambda: defaultdict(int))
+    for row in dados:
+        data_row = parse_date(row.get(col_data, ''))
+        if data_row != hoje: continue
+        
+        loja = str(row.get(col_loja, '')).strip()
+        vendedor = str(row.get(col_vendedor, '')).strip()
         chave = (loja, vendedor)
 
-        for campo, palavras in mapeamento_campos.items():
-            for key in row.keys():
-                key_lower = key.lower()
-                # Tratamento especial para M
-                if campo == 'm':
-                    if key_lower == 'm':
-                        val = row.get(key, 0)
-                        try:
-                            val = float(str(val).replace(",", "."))
-                            metricas_dia[chave][campo] += val
-                        except:
-                            pass
-                        break
-                elif any(p in key_lower for p in palavras):
-                    val = row.get(key, 0)
-                    try:
-                        val = float(str(val).replace(",", "."))
-                        metricas_dia[chave][campo] += val
-                    except (ValueError, TypeError):
-                        pass
-                    break
+        for campo in [col_receitas, col_perdas, col_vendas, col_reservas, col_google]:
+            val = str(row.get(campo, 0)).replace(',', '.')
+            try:
+                metricas_hoje[chave][campo] += int(float(val))
+            except: pass
 
-    # === 4. Montar relatório final com regras de reserva ===
+    # Montar Relatório
     relatorio = []
-    for (loja, vendedor) in sorted(todos_pares):
-        chave_str = f"{loja} - {vendedor}"
-        metricas = metricas_dia[(loja, vendedor)]
-        reserva_acc = reserva_acumulada.get(chave_str, 0.0)
-        google_acc = google_acumulado.get(chave_str, 0.0)
-        m_acc = m_acumulado.get(chave_str, 0.0)
+    for (loja, vendedor) in sorted(vendedores_vistos):
+        chave_str = f'{loja} - {vendedor}'
+        acc_res = max(0, reserva_acumulada[chave_str])
+        acc_goo = google_acumulado[chave_str]
+        
+        m_hoje = metricas_hoje[(loja, vendedor)]
+        
+        # Atualizar acumulados com os dados de HOJE
+        hoje_res = m_hoje.get(col_reservas, 0)
+        if hoje_res == -1: acc_res = max(0, acc_res - 1)
+        elif hoje_res > 0: acc_res += 1
+        
+        acc_goo += m_hoje.get(col_google, 0)
 
-        reserva_dia_bruto = metricas.get('reserva', 0)
-        reserva_dia_final = 0
-        try:
-            valor_dia = float(str(reserva_dia_bruto).strip().replace(",", "."))
-            if valor_dia == -1:
-                reserva_acc = max(0, reserva_acc - 1)
-                reserva_dia_final = -1
-            elif valor_dia > 0:
-                reserva_acc += 1
-                reserva_dia_final = 1
-        except (ValueError, TypeError):
-            pass
-
-        # Adicionar métricas do dia ao acumulado
-        google_acc += metricas.get('google', 0)
-        m_acc += metricas.get('m', 0)
-
-        # Só inclui se RESERVA_ACUMULADA > 0
-        if reserva_acc <= 0:
-            continue
-
-        linha = {
-            "DATA": data_selecionada.strftime("%d/%m/%Y"),
-            "LOJA": loja,
-            "Vendedor": vendedor,
-            "RECEITA": int(round(metricas.get('receita', 0))),
-            "PERDA": int(round(metricas.get('perda', 0))),
-            "VENDA": int(round(metricas.get('venda', 0))),
-            "RESERVA": reserva_dia_final,
-            "RESERVA_ACUMULADA": int(round(reserva_acc)),
-            "GOOGLE_ACUMULADO": int(round(google_acc))
-        }
-        relatorio.append(linha)
+        # Só exibe se houver reserva acumulada
+        if acc_res > 0:
+            relatorio.append({
+                'DATA': hoje.strftime('%d/%m/%Y'),
+                'LOJA': loja,
+                'VENDEDOR': vendedor,
+                'RECEITAS': m_hoje.get(col_receitas, 0),
+                'PERDAS': m_hoje.get(col_perdas, 0),
+                'VENDAS': m_hoje.get(col_vendas, 0),
+                'RESERVA': hoje_res,
+                'RESERVA_ACUMULADA': acc_res,
+                'GOOGLE_ACUMULADO': acc_goo
+            })
 
     if not relatorio:
-        st.info("Nenhum vendedor com reserva acumulada > 0 para hoje.")
+        st.info('📭 Nenhum vendedor com reserva acumulada para hoje.')
         return
 
     df = pd.DataFrame(relatorio)
-    # Reordenar colunas para garantir consistência
-    cols_order = ["DATA", "LOJA", "Vendedor", "RECEITA", "PERDA", "VENDA", "RESERVA", "RESERVA_ACUMULADA", "GOOGLE_ACUMULADO"]
-    df = df[cols_order].sort_values(by=["LOJA", "Vendedor"]).reset_index(drop=True)
+    # Limpeza para Inteiro Puro e Vazio
+    for col in df.columns:
+        if col not in ['DATA', 'LOJA', 'VENDEDOR']:
+            df[col] = df[col].apply(lambda x: str(int(x)) if x != 0 else '')
 
-    st.dataframe(
-        df.style.format({
-            "RECEITA": "{:.0f}",
-            "PERDA": "{:.0f}",
-            "VENDA": "{:.0f}",
-            "RESERVA": "{:.0f}",
-            "RESERVA_ACUMULADA": "{:.0f}",
-            "GOOGLE_ACUMULADO": "{:.0f}"
-        }),
-        use_container_width=True,
-        hide_index=True
-    )
+    st.dataframe(df, use_container_width=True)
 
-    # Botão de download
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Relatório")
-    output.seek(0)
-    st.download_button(
-        label="📥 Baixar Relatório em Excel",
-        data=output,
-        file_name=f"relatorio_completo_{data_selecionada.strftime('%d-%m-%Y')}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    # Botão Download
+    buffer = io.BytesIO()
+    df.to_excel(buffer, index=False, engine='openpyxl')
+    st.download_button('📥 Baixar Acumulado Excel', buffer.getvalue(), 'Relatorio Acumulado.xlsx')

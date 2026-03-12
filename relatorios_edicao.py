@@ -1,145 +1,112 @@
-import streamlit as st
+﻿import streamlit as st
 import pandas as pd
-from google_planilha import GooglePlanilha
 from datetime import datetime, timedelta
+import sys
+import os
 
-NOME_COLUNA_USUARIO = "USUARIO_ALTERACAO"
-NOME_COLUNA_DATA = "DATA"  # ← Ajuste se sua coluna tiver outro nome
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-COLUNAS_NUMERICAS = {
-    "ATENDIMENTOS", "RECEITAS", "PERDAS", "VENDAS",
-    "RESERVAS", "PESQUISAS", "EXAME DE VISTA", "M", "GOOGLE"
-}
+try:
+    from google_planilha import GooglePlanilha
+except Exception as e:
+    st.error(f'Erro ao importar GooglePlanilha: {e}')
+    st.stop()
 
-def preparar_valor(val, eh_numerica: bool):
-    if pd.isna(val) or val is None or str(val).strip().lower() in ['nan', 'none', '']:
-        return ""
-    val_str = str(val).strip()
-    if eh_numerica:
-        try:
-            num = float(val_str.replace(",", "."))
-            return int(num) if num.is_integer() else num
-        except:
-            return val_str
-    return val_str
+def eh_dia_util(data):
+    return data.weekday() < 5
 
-def parse_data_brasil(data_str):
-    """Converte string dd/mm/YYYY para datetime."""
-    try:
-        return datetime.strptime(data_str.strip(), "%d/%m/%Y")
-    except:
-        return None
+def obter_ultimo_dia_util(data_base):
+    um_dia = timedelta(days=1)
+    target = data_base - um_dia
+    while not eh_dia_util(target):
+        target -= um_dia
+    return target
 
 def mostrar():
-    st.title("🛠️ Edição e Exclusão de Linhas")
-    st.info("✏️ Edite células em um período específico. **Não é possível adicionar novas linhas.**")
-
+    st.title('🛠️ Gestão de Dados (Editar / Excluir / Adicionar)')
+    
     try:
         gsheet = GooglePlanilha()
-        lista = gsheet.aba_relatorio.get_all_values()
-        if len(lista) < 2:
-            st.warning("Nenhum dado para editar.")
+        lista_completa = gsheet.aba_relatorio.get_all_values()
+        if len(lista_completa) < 1:
+            st.warning('📭 Planilha vazia.')
             return
 
-        cabecalho = lista[0]
-        dados = lista[1:]
+        cabecalho_exato = ['LOJA', 'DATA', 'HORA', 'VENDEDOR', 'CLIENTE', 'ATENDIMENTOS', 'RECEITAS', 'PERDAS', 'VENDAS', 'RESERVAS', 'PESQUISAS', 'EXAME DE VISTA', 'GOOGLE', 'USUARIO_ALTERACAO']
+        
+        df_base = pd.DataFrame(lista_completa[1:], columns=lista_completa[0])
+        for col in cabecalho_exato:
+            if col not in df_base.columns:
+                df_base[col] = ''
+        
+        df_base = df_base[cabecalho_exato].copy()
+        df_base['ID_REAL'] = range(2, len(df_base) + 2) 
 
-        # Garantir coluna de usuário
-        if NOME_COLUNA_USUARIO not in cabecalho:
-            cabecalho.append(NOME_COLUNA_USUARIO)
-            for linha in dados:
-                linha.append("")
-
-        df_completo = pd.DataFrame(dados, columns=cabecalho)
     except Exception as e:
-        st.error(f"Erro ao carregar: {e}")
+        st.error(f'❌ Erro ao carregar dados: {e}')
         return
 
-    # --- Verificar se coluna de data existe ---
-    if NOME_COLUNA_DATA not in df_completo.columns:
-        st.error(f"Coluna de data '{NOME_COLUNA_DATA}' não encontrada.")
-        return
+    hoje = datetime.now().date()
+    dia_anterior_util = obter_ultimo_dia_util(hoje)
+    
+    st.sidebar.subheader('📅 Filtro de Exibição')
+    filtro_data = st.sidebar.date_input('Mostrar dados de:', dia_anterior_util)
+    data_str_filtro = filtro_data.strftime('%d/%m/%Y')
 
-    # --- Converter coluna de data para datetime ---
-    df_completo['_data_parsed'] = df_completo[NOME_COLUNA_DATA].apply(parse_data_brasil)
-    df_valido = df_completo.dropna(subset=['_data_parsed']).copy()
-
-    if df_valido.empty:
-        st.warning("Nenhuma data válida encontrada.")
-        return
-
-    # --- Definir intervalo de datas ---
-    datas_validas = df_valido['_data_parsed']
-    data_min = datas_validas.min().date()
-    data_max = datas_validas.max().date()
-
-    # --- Filtros de data ---
-    st.subheader("📅 Filtrar por Período")
-    col_dt1, col_dt2 = st.columns(2)
-    with col_dt1:
-        data_inicio = st.date_input("Data Inicial", value=data_max - timedelta(days=7), min_value=data_min, max_value=data_max)
-    with col_dt2:
-        data_fim = st.date_input("Data Final", value=data_max, min_value=data_min, max_value=data_max)
-
-    if data_inicio > data_fim:
-        st.error("⚠️ Data inicial não pode ser maior que a final.")
-        return
-
-    # --- Filtrar dados ---
-    mascara = (df_valido['_data_parsed'].dt.date >= data_inicio) & (df_valido['_data_parsed'].dt.date <= data_fim)
-    df_filtrado = df_valido[mascara].copy()
-    df_filtrado = df_filtrado.drop(columns=['_data_parsed'])  # remover coluna auxiliar
+    df_filtrado = df_base[df_base['DATA'] == data_str_filtro].copy()
 
     if df_filtrado.empty:
-        st.info("Nenhum dado encontrado no período selecionado.")
-        return
+        st.info(f'📭 Nenhum dado encontrado para {data_str_filtro}.')
+        df_filtrado = pd.DataFrame(columns=cabecalho_exato + ['ID_REAL'])
 
-    st.success(f"Mostrando {len(df_filtrado)} linhas do período {data_inicio.strftime('%d/%m/%Y')} a {data_fim.strftime('%d/%m/%Y')}")
-
-    # --- Editor ---
+    st.subheader(f'📝 Editando registros de: {data_str_filtro}')
+    
     df_editado = st.data_editor(
         df_filtrado,
-        num_rows="fixed",
+        num_rows='dynamic',
         use_container_width=True,
-        key="editor"
+        column_order=cabecalho_exato,
+        key='data_editor_gestao'
     )
 
-    if st.button("💾 Salvar Alterações", type="primary"):
+    if st.button('💾 Salvar Alterações no Google Sheets', type='primary'):
         try:
             timestamp = datetime.now().strftime('%d/%m %H:%M')
-            cabecalho_final = df_editado.columns.tolist()
+            ids_originais = set(df_filtrado['ID_REAL'].tolist())
+            ids_mantidos = set(df_editado['ID_REAL'].dropna().tolist())
+            ids_para_excluir = sorted([int(idx) for idx in list(ids_originais - ids_mantidos)], reverse=True)
 
-            # Atualizar cabeçalho se necessário
-            if gsheet.aba_relatorio.row_values(1) != cabecalho_final:
-                gsheet.aba_relatorio.update('1:1', [cabecalho_final])
+            novas_linhas = df_editado[df_editado['ID_REAL'].isna() | (df_editado['ID_REAL'] == '')].copy()
+            df_comum_orig = df_filtrado[df_filtrado['ID_REAL'].isin(ids_mantidos)].set_index('ID_REAL')
+            df_comum_edit = df_editado[df_editado['ID_REAL'].isin(ids_mantidos)].set_index('ID_REAL')
 
-            # Mapear índices originais das linhas filtradas
-            indices_originais = df_filtrado.index.tolist()
+            # 1. Excluir
+            for idx in ids_para_excluir:
+                gsheet.aba_relatorio.delete_rows(idx)
 
-            # Preparar atualizações
-            for idx_pos, (idx_orig, row_edit) in enumerate(zip(indices_originais, df_editado.itertuples(index=False))):
-                linha_editada = list(row_edit)
-                linha_original = df_completo.loc[idx_orig].copy()
-
-                # Verificar alteração
-                alterado = False
-                for j, col in enumerate(cabecalho_final):
-                    if col == NOME_COLUNA_USUARIO:
-                        continue
-                    eh_num = col in COLUNAS_NUMERICAS
-                    val_orig = preparar_valor(linha_original[col], eh_num)
-                    val_edit = preparar_valor(linha_editada[j], eh_num)
-                    if val_orig != val_edit:
-                        alterado = True
+            # 2. Editar
+            for idx in ids_mantidos:
+                linha_orig = df_comum_orig.loc[idx]
+                linha_edit = df_comum_edit.loc[idx]
+                mudou = False
+                for col in cabecalho_exato[:-1]:
+                    if str(linha_orig[col]) != str(linha_edit[col]):
+                        mudou = True
                         break
+                if mudou:
+                    valores = linha_edit.tolist()
+                    valores[-1] = f'Editado em {timestamp}'
+                    gsheet.aba_relatorio.update(f'A{idx}:N{idx}', [valores])
 
-                if alterado:
-                    # Atualizar coluna de usuário
-                    usuario_idx = cabecalho_final.index(NOME_COLUNA_USUARIO)
-                    linha_editada[usuario_idx] = f"Editado em {timestamp}"
-                    # Atualizar no Google Sheets (linha = idx_orig + 2)
-                    gsheet.aba_relatorio.update(f"{idx_orig + 2}:{idx_orig + 2}", [linha_editada])
+            # 3. Adicionar
+            for _, row in novas_linhas.iterrows():
+                valores = [row.get(c, '') for c in cabecalho_exato]
+                valores[-1] = f'Adicionado em {timestamp}'
+                if not valores[1]: valores[1] = data_str_filtro
+                gsheet.aba_relatorio.append_row(valores)
 
-            st.success("✅ Alterações salvas com sucesso!")
+            st.success('✅ Planilha atualizada com sucesso!')
+            st.rerun()
+
         except Exception as e:
-            st.error(f"❌ Erro ao salvar: {e}")
+            st.error(f'❌ Erro ao salvar: {e}')

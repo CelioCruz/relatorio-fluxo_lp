@@ -1,6 +1,6 @@
 streamlit
-gspread
 pandas
+gspread
 openpyxl
 streamlit-autorefresh
 python-dotenv

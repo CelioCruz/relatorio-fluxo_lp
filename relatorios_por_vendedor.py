@@ -1,199 +1,62 @@
-import streamlit as st
+﻿import streamlit as st
 import pandas as pd
-from datetime import datetime, date
+from datetime import datetime
 import sys
 import os
-import io
 
-# Adiciona o diretório raiz ao sys.path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
     from google_planilha import GooglePlanilha
 except Exception as e:
-    st.error(f"Erro ao importar GooglePlanilha: {e}")
+    st.error(f'Erro ao importar GooglePlanilha: {e}')
     GooglePlanilha = None
 
 def mostrar():
-    st.title("👨‍💼 Relatório por Vendedor")
-    st.markdown("Selecione o vendedor e o período:")
+    st.title('👤 Relatório por Vendedor')
+    if GooglePlanilha is None: return
 
-    if GooglePlanilha is None:
-        st.warning("⚠️ Módulo GooglePlanilha não carregado.")
-        return
-
-    # === Conexão com Google Sheets ===
     try:
         gsheet = GooglePlanilha()
         dados_brutos = gsheet.aba_relatorio.get_all_records()
-        if not dados_brutos:
-            st.info("📭 Nenhum dado encontrado na planilha.")
-            return
-    except FileNotFoundError:
-        st.error("❌ Arquivo `credentials.json` não encontrado.")
-        return
-    except Exception as e:
-        st.error(f"❌ Erro ao conectar ao Google Sheets:\n{e}")
-        return
-
-    # === Carregar lista de vendedores ===
-    coluna_vendedor = None
-    for key in dados_brutos[0].keys():
-        if key.strip().lower() in ['vendedor', 'vendedora', 'funcionário', 'vend']:
-            coluna_vendedor = key
-            break
-
-    if not coluna_vendedor:
-        st.error("❌ Coluna 'Vendedor' não encontrada.")
-        return
-
-    vendedores_unicos = sorted({
-        str(row[coluna_vendedor]).strip()
-        for row in dados_brutos
-        if row.get(coluna_vendedor) and str(row[coluna_vendedor]).strip().lower() not in ['nan', '', 'none']
-    })
-
-    if not vendedores_unicos:
-        st.warning("📭 Nenhum vendedor encontrado.")
-        return
-
-    # === Seleção de vendedor e datas ===
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        vendedor = st.selectbox("Vendedor:", vendedores_unicos)
-    with col2:
-        data_de = st.date_input("Data inicial", value=date.today())
-    with col3:
-        data_ate = st.date_input("Data final", value=date.today())
-
-    if data_de > data_ate:
-        st.error("⚠️ A data inicial não pode ser maior que a data final.")
-        return
-
-    if not vendedor:
-        st.warning("⚠️ Selecione um vendedor.")
-        return
-
-    # === Funções de filtragem ===
-    def filtrar_por_vendedor(dados, vendedor):
-        return [
-            row for row in dados
-            if str(row.get(coluna_vendedor, "")).strip().lower() == vendedor.strip().lower()
-        ]
-
-    def filtrar_por_data(dados, data_de, data_ate):
-        coluna_data = None
-        for key in dados[0].keys():
-            if key.strip().lower() in ['data', 'datas', 'dt']:
-                coluna_data = key
-                break
-
-        if not coluna_data:
-            st.warning("⚠️ Coluna 'Data' não encontrada.")
-            return dados
+        vendedores = sorted(list(set([str(row.get('VENDEDOR', '')).strip() for row in dados_brutos if row.get('VENDEDOR')])))
+        vendedor_selecionado = st.selectbox('Selecione o Vendedor:', vendedores)
+        
+        col1, col2 = st.columns(2)
+        data_de = col1.date_input('De:', datetime.now())
+        data_ate = col2.date_input('Até:', datetime.now())
 
         dados_filtrados = []
-        for row in dados:
-            data_str = str(row.get(coluna_data, "")).strip()
-            if not data_str:
-                continue
-            try:
-                data_row = datetime.strptime(data_str, "%d/%m/%Y").date()
-                if data_de <= data_row <= data_ate:
-                    dados_filtrados.append(row)
-            except ValueError:
-                continue
-        return dados_filtrados
+        for row in dados_brutos:
+            if str(row.get('VENDEDOR', '')).strip() == vendedor_selecionado:
+                try:
+                    data_row = datetime.strptime(str(row.get('DATA', '')).split()[0], '%d/%m/%Y').date()
+                    if data_de <= data_row <= data_ate: dados_filtrados.append(row)
+                except: continue
 
-    # === Processamento ===
-    dados_vendedor = filtrar_por_vendedor(dados_brutos, vendedor)
-    dados_filtrados = filtrar_por_data(dados_vendedor, data_de, data_ate)
+        df = pd.DataFrame(dados_filtrados)
+        colunas_exatas = ['DATA', 'LOJA', 'CLIENTE', 'RECEITAS', 'PERDAS', 'VENDAS', 'RESERVAS', 'GOOGLE', 'PESQUISAS', 'EXAME DE VISTA']
+        df = df.reindex(columns=colunas_exatas).fillna(0)
+        
+        # Somas para o resumo (antes de formatar)
+        res_rec = int(pd.to_numeric(df['RECEITAS'], errors='coerce').sum())
+        res_per = int(pd.to_numeric(df['PERDAS'], errors='coerce').sum())
+        res_ven = int(pd.to_numeric(df['VENDAS'], errors='coerce').sum())        
+        res_res = int(pd.to_numeric(df['RESERVAS'], errors='coerce').sum())
+        res_goo = int(pd.to_numeric(df['GOOGLE'], errors='coerce').sum())
 
-    if not dados_filtrados:
-        st.info("📭 Nenhum dado encontrado para este vendedor no período selecionado.")
-        return
-
-    # === Criar DataFrame ===
-    df = pd.DataFrame(dados_filtrados)
-
-    # === Mapear colunas desejadas ===
-    colunas_desejadas = {
-        "DATA": ["data", "dt"],
-        "LOJA": ["loja", "unidade", "filial"],
-        "CLIENTE": ["cliente", "nome"],
-        "ATENDIMENTO": ["atendimento", "atend"],
-        "RECEITA": ["receita", "faturamento"],
-        "PERDA": ["perda", "cancelamentos"],
-        "VENDA": ["venda", "pedidos"],
-        "RESERVA DEPOIS DE VENDA": ["reserva", "agendamento"],
-        "GOOGLE": ["m", "google"],
-        "PESQUISA": ["pesquisa", "pesquisas"],
-        "CONSULTA": ["consulta", "exame", "exame de vista"]
-    }
-
-    colunas_finais = {}
-    for nome, palavras in colunas_desejadas.items():
+        # Formatação para Inteiro (1 em vez de 1.0) e Vazio
         for col in df.columns:
-            col_lower = col.lower()
-            if any(p == col_lower or p in col_lower for p in palavras):
-                colunas_finais[col] = nome
-                break
+            if col not in ['DATA', 'LOJA', 'CLIENTE']:
+                df[col] = df[col].apply(lambda x: str(int(float(str(x).replace(',', '.')))) if str(x) not in ['0', '0.0', ''] else '')
 
-    if colunas_finais:
-        df = df[list(colunas_finais.keys())].rename(columns=colunas_finais)
-
-    # Reordenar colunas: DATA, LOJA, CLIENTE, RECEITA, PERDA, VENDA, RESERVA DEPOIS DE VENDA, GOOGLE, PESQUISA, CONSULTA
-    ordem = ["DATA", "LOJA", "CLIENTE", "RECEITA", "PERDA", "VENDA", "RESERVA DEPOIS DE VENDA", "GOOGLE", "PESQUISA", "CONSULTA"]
-    colunas_existentes = [c for c in ordem if c in df.columns]
-    df = df[colunas_existentes].copy()
-
-    # ✅ CONVERSÃO NUMÉRICA SEGURA
-    colunas_numericas = ["RECEITA", "PERDA", "VENDA", "RESERVA DEPOIS DE VENDA", "GOOGLE", "PESQUISA", "CONSULTA"]
-    for col in colunas_numericas:
-        if col in df.columns:
-            df[col] = df[col].astype(str)
-            df[col] = df[col].str.strip().replace(
-                ["", "nan", "None", "NaN", "null", "–", "-", " ", "R$", "R$ ", "r$", "r$ "],
-                "0"
-            )
-            df[col] = df[col].str.replace(r"[^\d.,-]", "", regex=True)
-            df[col] = df[col].str.replace(",", ".", regex=False)
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
-
-    # ✅ Formatar: inteiros quando possível
-    for col in ["PESQUISA", "CONSULTA", "PERDA", "GOOGLE"]:
-        if col in df.columns:
-            df[col] = df[col].astype(int)
-
-    for col in ["RECEITA", "VENDA", "RESERVA DEPOIS DE VENDA"]:
-        if col in df.columns:
-            df[col] = df[col].round(2).apply(lambda x: int(x) if x == int(x) else x)
-
-    # === Exibir tabela ===
-    st.markdown("### Dados do Vendedor")
-    st.dataframe(df, use_container_width=True, hide_index=True)
-
-    # === Resumo ===
-    st.markdown("### Resumo")
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    col1.metric("Atendimentos", len(df))
-    col2.metric("Receitas", f"{int(df['RECEITA'].sum())}" if "RECEITA" in df.columns and df["RECEITA"].sum() != 0 else "0")
-    col3.metric("Perdas", f"{int(df['PERDA'].sum())}" if "PERDA" in df.columns and df["PERDA"].sum() != 0 else "0")
-    col4.metric("Vendas", f"{int(df['VENDA'].sum())}" if "VENDA" in df.columns and df["VENDA"].sum() != 0 else "0")
-    col5.metric("Reserva", f"{int(df['RESERVA DEPOIS DE VENDA'].sum())}" if "RESERVA DEPOIS DE VENDA" in df.columns and df["RESERVA DEPOIS DE VENDA"].sum() != 0 else "0")
-    col6.metric("Google", f"{int(df['GOOGLE'].sum())}" if "GOOGLE" in df.columns and df["GOOGLE"].sum() != 0 else "0")
-
-    # === Botão de download único ===
-    try:
-        buffer = io.BytesIO()
-        df.to_excel(buffer, index=False, engine="openpyxl")
-        st.download_button(
-            label="📥 Baixar como Excel",
-            data=buffer.getvalue(),
-            file_name="Relatorio por Vendedor.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-    except ImportError:
-        st.info("📦 Instale `openpyxl`: `pip install openpyxl`")
-    except Exception as e:
-        st.error(f"Erro ao gerar o arquivo Excel: {e}")
+        st.dataframe(df)
+        st.markdown('---')
+        st.markdown('### Resumo')
+        cols = st.columns(5)
+        cols[0].metric('Receitas', res_rec)        
+        cols[1].metric('Perdas', res_per)
+        cols[2].metric('Vendas', res_ven)
+        cols[3].metric('Reservas', res_res)
+        cols[4].metric('Google', res_goo)
+    except Exception as e: st.error(f'Erro: {e}')
