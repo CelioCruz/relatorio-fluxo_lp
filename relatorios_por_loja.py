@@ -67,7 +67,7 @@ def mostrar():
             if col != 'VENDEDOR':
                 df[col] = df[col].apply(lambda x: str(int(x)) if x != 0 else '')
 
-        st.dataframe(df)
+        st.dataframe(df, width="stretch")
         st.markdown('---')
         st.markdown('### Resumo')
         c1, c2, c3, c4 = st.columns(4)

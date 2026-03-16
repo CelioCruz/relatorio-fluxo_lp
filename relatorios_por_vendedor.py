@@ -50,7 +50,7 @@ def mostrar():
             if col not in ['DATA', 'LOJA', 'CLIENTE']:
                 df[col] = df[col].apply(lambda x: str(int(float(str(x).replace(',', '.')))) if str(x) not in ['0', '0.0', ''] else '')
 
-        st.dataframe(df)
+        st.dataframe(df, width="stretch")
         st.markdown('---')
         st.markdown('### Resumo')
         cols = st.columns(5)

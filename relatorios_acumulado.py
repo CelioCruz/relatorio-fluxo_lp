@@ -135,7 +135,7 @@ def mostrar():
         if col not in ['DATA', 'LOJA', 'VENDEDOR']:
             df[col] = df[col].apply(lambda x: str(int(x)) if x != 0 else '')
 
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width="stretch")
 
     # Botão Download
     buffer = io.BytesIO()

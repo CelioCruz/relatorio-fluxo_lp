@@ -5,9 +5,9 @@ import relatorios_geral
 import relatorios_por_loja
 import relatorios_por_vendedor
 import relatorios_loja_vendedor
-import relatorios_acumulado
 import relatorios_tempo_real
 import relatorios_edicao
+import relatorios_reservas_acumuladas
 
 # Configuração inicial
 st.set_page_config(
@@ -35,27 +35,27 @@ if st.session_state.tela == "principal":
         ("🏢 Relatório por Loja", "loja"),
         ("👨‍💼 Relatório por Vendedor", "vendedor"),
         ("📊 Relatório por Loja e Vendedor", "loja_vendedor"),
-        ("🔄 Relatório Acumulado (Loja/Vendedor)", "acumulado"),
+        ("📋 Reservas Acumuladas", "reservas_acumuladas"),
         ("⏱️ Tempo Real por Vendedor", "tempo_real"),
         ("🛠️ Edição Avançada", "edicao"), 
     ]
 
     # Exibe os botões um abaixo do outro
     for texto, chave in botoes:
-        if st.button(texto, use_container_width=True, key=f"btn_{chave}"):
+        if st.button(texto, width="stretch", key=f"btn_{chave}"):
             st.session_state.tela = chave
 
     # Botão "Sair" centralizado
     st.markdown("<br>", unsafe_allow_html=True)
     col_center = st.columns([1, 2, 1])
     with col_center[1]:
-        if st.button("🚪 Sair", use_container_width=True, type="primary"):
+        if st.button("🚪 Sair", width="stretch", type="primary"):
             st.warning("Para sair, feche a aba do navegador.")
 
 # Navegação para os relatórios
 else:
     # Botão "Voltar" no topo
-    if st.button("⬅️ Voltar", use_container_width=True):
+    if st.button("⬅️ Voltar", width="stretch"):
         ir_para_principal()
 
     # Carrega o relatório selecionado
@@ -67,8 +67,8 @@ else:
         relatorios_por_vendedor.mostrar()
     elif st.session_state.tela == "loja_vendedor":
         relatorios_loja_vendedor.mostrar()
-    elif st.session_state.tela == "acumulado":
-        relatorios_acumulado.mostrar()
+    elif st.session_state.tela == "reservas_acumuladas":
+        relatorios_reservas_acumuladas.mostrar()
     elif st.session_state.tela == "tempo_real":
         relatorios_tempo_real.mostrar()
     elif st.session_state.tela == "edicao":

@@ -64,7 +64,7 @@ def mostrar():
     df_editado = st.data_editor(
         df_filtrado,
         num_rows='dynamic',
-        use_container_width=True,
+        width="stretch",
         column_order=cabecalho_exato,
         key='data_editor_gestao'
     )

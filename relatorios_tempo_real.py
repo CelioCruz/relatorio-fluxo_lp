@@ -60,5 +60,5 @@ def mostrar():
                 df[col] = df[col].apply(lambda x: str(int(x)) if x != 0 else '')
 
         st.markdown(f'### 🏪 **{loja}**')
-        st.dataframe(df)
+        st.dataframe(df, width="stretch")
     except Exception as e: st.error(f'Erro: {e}')
