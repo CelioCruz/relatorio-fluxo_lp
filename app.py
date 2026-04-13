@@ -32,8 +32,11 @@ def ir_para_principal():
 # Barra lateral com informações do usuário e Logout
 with st.sidebar:
     st.markdown(f"👤 **Usuário:** {st.session_state.usuario_logado}")
-    if st.button("🔑 Alterar Senha", width="stretch"):
-        st.session_state.tela = "alterar_senha"
+    
+    # 🔐 SÓ MOSTRA O BOTÃO SE FOR ADM (TODAS AS LOJAS)
+    if st.session_state.lojas_permitidas == 'TODAS':
+        if st.button("🔑 Alterar Senha", width="stretch"):
+            st.session_state.tela = "alterar_senha"
     
     st.markdown("---")
     if st.button("🚪 Logout", width="stretch"):
