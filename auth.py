@@ -34,25 +34,43 @@ def login():
 
                 usuarios_dados = gsheet.aba_usuarios.get_all_records()
                 
-                # Procura o usuário (ignora maiúsculas/minúsculas no nome)
-                usuario_encontrado = next((u for u in usuarios_dados if str(u['USUARIOS']).strip().upper() == usuario_input.upper()), None)
+                if not usuarios_dados:
+                    st.error("⚠️ A aba 'usuarios' está vazia.")
+                    return False
 
-                if usuario_encontrado and verificar_senha(senha_input, str(usuario_encontrado['SENHA'])):
-                    st.session_state.autenticado = True
-                    st.session_state.usuario_logado = usuario_encontrado['USUARIOS']
-                    
-                    # Processa as lojas permitidas
-                    lojas_str = str(usuario_encontrado['LOJAS']).strip()
-                    if lojas_str.upper() == 'TODAS':
-                        st.session_state.lojas_permitidas = 'TODAS'
+                # 🕵️ Normaliza as chaves (nomes das colunas) para evitar erros de digitação/espaços
+                # Transforma todas as colunas em MAIÚSCULO e remove espaços
+                dados_normalizados = []
+                for u in usuarios_dados:
+                    novo_u = {str(k).strip().upper(): v for k, v in u.items()}
+                    dados_normalizados.append(novo_u)
+
+                # Procura o usuário (ignora maiúsculas/minúsculas no nome digitado)
+                usuario_encontrado = next((u for u in dados_normalizados if str(u.get('USUARIOS', '')).strip().upper() == usuario_input.upper()), None)
+
+                if usuario_encontrado:
+                    # Verifica se as colunas existem após a normalização
+                    if 'SENHA' not in usuario_encontrado:
+                        st.error(f"❌ Coluna 'SENHA' não encontrada. Colunas detectadas: {list(usuario_encontrado.keys())}")
+                        return False
+
+                    if verificar_senha(senha_input, str(usuario_encontrado['SENHA'])):
+                        st.session_state.autenticado = True
+                        st.session_state.usuario_logado = usuario_encontrado.get('USUARIOS', usuario_input)
+                        
+                        # Processa as lojas permitidas
+                        lojas_str = str(usuario_encontrado.get('LOJAS', 'TODAS')).strip()
+                        if lojas_str.upper() == 'TODAS':
+                            st.session_state.lojas_permitidas = 'TODAS'
+                        else:
+                            st.session_state.lojas_permitidas = [l.strip() for l in lojas_str.split(',')]
+                        
+                        st.success("Login realizado com sucesso!")
+                        st.rerun()
                     else:
-                        # Limpa espaços e garante que sejam strings (ex: "01, 02" vira ["01", "02"])
-                        st.session_state.lojas_permitidas = [l.strip() for l in lojas_str.split(',')]
-                    
-                    st.success("Login realizado com sucesso!")
-                    st.rerun()
+                        st.error("❌ Senha incorreta.")
                 else:
-                    st.error("❌ Usuário ou senha incorretos.")
+                    st.error("❌ Usuário não encontrado.")
             except Exception as e:
                 st.error(f"Erro ao autenticar: {e}")
     
