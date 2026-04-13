@@ -13,6 +13,7 @@ class GooglePlanilha:
             self.planilha = st.session_state.planilha_atendimento
             self.aba_vendedores = self._get_worksheet("vendedor")
             self.aba_relatorio = self._get_worksheet("relatorio")
+            self.aba_usuarios = self._get_worksheet("usuarios")
 
     def _criar_conexao(self):
         """Cria conexão usando Service Account (sem OAuth)."""
@@ -45,6 +46,7 @@ class GooglePlanilha:
             self.planilha = planilha
             self.aba_vendedores = self._get_worksheet("vendedor")
             self.aba_relatorio = self._get_worksheet("relatorio")
+            self.aba_usuarios = self._get_worksheet("usuarios")
 
             st.success("✅ Planilha carregada com sucesso!")
 

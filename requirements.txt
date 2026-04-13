@@ -4,3 +4,4 @@ gspread
 openpyxl
 streamlit-autorefresh
 python-dotenv
+bcrypt

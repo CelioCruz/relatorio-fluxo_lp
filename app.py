@@ -8,6 +8,7 @@ import relatorios_loja_vendedor
 import relatorios_tempo_real
 import relatorios_edicao
 import relatorios_reservas_acumuladas
+import auth  # Importa o módulo de autenticação
 
 # Configuração inicial
 st.set_page_config(
@@ -16,6 +17,10 @@ st.set_page_config(
     layout="centered"
 )
 
+# Verifica se o usuário está logado
+if not auth.login():
+    st.stop()  # Para a execução aqui se não estiver logado
+
 # Estado de navegação
 if "tela" not in st.session_state:
     st.session_state.tela = "principal"
@@ -23,6 +28,16 @@ if "tela" not in st.session_state:
 # Função para voltar à tela principal
 def ir_para_principal():
     st.session_state.tela = "principal"
+
+# Barra lateral com informações do usuário e Logout
+with st.sidebar:
+    st.markdown(f"👤 **Usuário:** {st.session_state.usuario_logado}")
+    if st.button("🔑 Alterar Senha", width="stretch"):
+        st.session_state.tela = "alterar_senha"
+    
+    st.markdown("---")
+    if st.button("🚪 Logout", width="stretch"):
+        auth.logout()
 
 # Tela principal: seleção de relatórios
 if st.session_state.tela == "principal":
@@ -73,3 +88,5 @@ else:
         relatorios_tempo_real.mostrar()
     elif st.session_state.tela == "edicao":
         relatorios_edicao.mostrar()
+    elif st.session_state.tela == "alterar_senha":
+        auth.formulario_alterar_senha()

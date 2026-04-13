@@ -24,6 +24,15 @@ def mostrar():
 
         coluna_loja = 'LOJA'
         lojas_unicas = sorted({str(row.get(coluna_loja, '')).strip() for row in dados_brutos if row.get(coluna_loja)})
+        
+        # 🔐 FILTRO DE ACESSO POR USUÁRIO
+        if 'lojas_permitidas' in st.session_state and st.session_state.lojas_permitidas != 'TODAS':
+            lojas_unicas = [l for l in lojas_unicas if l in st.session_state.lojas_permitidas]
+            
+        if not lojas_unicas:
+            st.warning("⚠️ Você não tem permissão para acessar nenhuma loja disponível nos dados.")
+            return
+
         loja_selecionada = st.selectbox('Selecione a Loja:', lojas_unicas)
 
         col1, col2 = st.columns(2)
