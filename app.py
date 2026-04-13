@@ -33,8 +33,8 @@ def ir_para_principal():
 with st.sidebar:
     st.markdown(f"👤 **Usuário:** {st.session_state.usuario_logado}")
     
-    # 🔐 SÓ MOSTRA O BOTÃO SE FOR ADM (TODAS AS LOJAS)
-    if st.session_state.lojas_permitidas == 'TODAS':
+    # 🔐 MOSTRA O BOTÃO PARA TODOS, EXCETO PARA USUÁRIOS QUE COMEÇAM COM "LOJA"
+    if not str(st.session_state.usuario_logado).upper().startswith("LOJA"):
         if st.button("🔑 Alterar Senha", width="stretch"):
             st.session_state.tela = "alterar_senha"
     
